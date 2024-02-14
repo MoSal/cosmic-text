@@ -97,6 +97,19 @@ pub struct LayoutLine {
     pub glyphs: Vec<LayoutGlyph>,
 }
 
+/// Custom visual line splitting. Takes precedence over `Wrap` mode.
+#[derive(Clone, Debug)]
+pub struct CustomSplit {
+    /// Skip glyphs belonging to text with byte indices less than this value in layout.
+    /// This is useful if a pre-context is possibly required to get correct shaping results.
+    pub skip_before: Option<usize>,
+    /// Skip glyphs belonging to text with byte indices larger than this value in layout
+    /// This is useful if a post-context is possibly required to get correct shaping results.
+    pub skip_after: Option<usize>,
+    /// Split/Wrap lines at these text byte indices in layout
+    pub new_lines_at: Vec<usize>,
+}
+
 /// Wrapping mode
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub enum Wrap {

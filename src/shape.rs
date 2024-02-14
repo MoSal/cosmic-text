@@ -14,7 +14,7 @@ use unicode_segmentation::UnicodeSegmentation;
 use crate::fallback::FontFallbackIter;
 use crate::{
     math, Align, AttrsList, CacheKeyFlags, Color, Font, FontSystem, LayoutGlyph, LayoutLine,
-    ShapePlanCache, Wrap,
+    ShapePlanCache, Wrap, CustomSplit,
 };
 
 /// The shaping strategy of some text.
@@ -962,6 +962,7 @@ impl ShapeLine {
         font_size: f32,
         line_width: f32,
         wrap: Wrap,
+        custom_split: Option<CustomSplit>,
         align: Option<Align>,
         match_mono_width: Option<f32>,
     ) -> Vec<LayoutLine> {
@@ -971,6 +972,7 @@ impl ShapeLine {
             font_size,
             line_width,
             wrap,
+            custom_split,
             align,
             &mut lines,
             match_mono_width,
@@ -984,6 +986,7 @@ impl ShapeLine {
         font_size: f32,
         line_width: f32,
         wrap: Wrap,
+        custom_split: Option<CustomSplit>,
         align: Option<Align>,
         layout_lines: &mut Vec<LayoutLine>,
         match_mono_width: Option<f32>,

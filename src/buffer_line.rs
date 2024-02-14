@@ -1,7 +1,7 @@
 #[cfg(not(feature = "std"))]
 use alloc::{string::String, vec::Vec};
 
-use crate::{Align, AttrsList, FontSystem, LayoutLine, ShapeBuffer, ShapeLine, Shaping, Wrap};
+use crate::{Align, AttrsList, FontSystem, LayoutLine, ShapeBuffer, ShapeLine, Shaping, Wrap, CustomSplit};
 
 /// A line (or paragraph) of text that is shaped and laid out
 #[derive(Clone, Debug)]
@@ -14,6 +14,7 @@ pub struct BufferLine {
     layout_opt: Option<Vec<LayoutLine>>,
     shaping: Shaping,
     metadata: Option<usize>,
+    custom_split: Option<CustomSplit>,
 }
 
 impl BufferLine {
@@ -29,6 +30,7 @@ impl BufferLine {
             layout_opt: None,
             shaping,
             metadata: None,
+            custom_split: None,
         }
     }
 
@@ -48,6 +50,7 @@ impl BufferLine {
             self.text.push_str(text);
             self.attrs_list = attrs_list;
             self.reset();
+            self.reset_custom_split("set_text");
             true
         } else {
             false
@@ -102,6 +105,8 @@ impl BufferLine {
     ///
     /// The wrap setting of the appended line will be lost
     pub fn append(&mut self, other: Self) {
+        self.reset_custom_split("append");
+
         let len = self.text.len();
         self.text.push_str(other.text());
 
@@ -122,6 +127,8 @@ impl BufferLine {
 
     /// Split off new line at index
     pub fn split_off(&mut self, index: usize) -> Self {
+        self.reset_custom_split("split_off");
+
         let text = self.text.split_off(index);
         let attrs_list = self.attrs_list.split_off(index);
         self.reset();
@@ -129,6 +136,21 @@ impl BufferLine {
         let mut new = Self::new(text, attrs_list, self.shaping);
         new.align = self.align;
         new
+    }
+
+    /// Any operation that mutates text including `set_text()` will reset this value.
+    ///
+    /// This takes precedence over `Wrap` value, even if custom_split has no split info.
+    /// In that case, it would be equivalent to setting `Wrap::None`.
+    pub fn set_custom_split(&mut self, custom_split: CustomSplit) {
+        self.custom_split = Some(custom_split)
+    }
+
+    fn reset_custom_split(&mut self, fn_name: &'static str) {
+        if self.custom_split.is_some() {
+            log::warn!("BufferLine::{fn_name}() will reset custom_split info");
+            self.custom_split = None;
+        }
     }
 
     /// Reset shaping, layout, and metadata caches
@@ -208,6 +230,7 @@ impl BufferLine {
     ) -> &[LayoutLine] {
         if self.layout_opt.is_none() {
             let align = self.align;
+            let custom_split = self.custom_split.clone();
             let shape = self.shape_in_buffer(scratch, font_system);
             let mut layout = Vec::with_capacity(1);
             shape.layout_to_buffer(
@@ -215,6 +238,7 @@ impl BufferLine {
                 font_size,
                 width,
                 wrap,
+                custom_split,
                 align,
                 &mut layout,
                 match_mono_width,
