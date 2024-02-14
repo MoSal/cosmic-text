@@ -97,6 +97,30 @@ pub struct LayoutLine {
     pub glyphs: Vec<LayoutGlyph>,
 }
 
+/// Custom layout line splitting of a `BufferLine`. Takes precedence over `Wrap` mode.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct CustomSplit {
+    /// Skip glyphs belonging to text with byte indices less than this value in layout.
+    /// This is useful if a pre-context is possibly required to get correct shaping results.
+    pub skip_before: Option<usize>,
+    /// Skip glyphs belonging to text with byte indices larger than this value in layout
+    /// This is useful if a post-context is possibly required to get correct shaping results.
+    pub skip_after: Option<usize>,
+    /// Split/Wrap lines at these text byte indices in layout
+    pub new_lines_at: Vec<usize>,
+}
+
+impl CustomSplit {
+    pub(crate) fn sanitize(mut self) -> Self {
+        let skip_before = self.skip_before.unwrap_or(0);
+        let skip_after = self.skip_after.unwrap_or(usize::MAX);
+        self.new_lines_at.sort();
+        self.new_lines_at.dedup();
+        self.new_lines_at.retain(|&new_at| new_at > skip_before && new_at < skip_after);
+        self
+    }
+}
+
 /// Wrapping mode
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub enum Wrap {

@@ -7,14 +7,14 @@ use alloc::vec::Vec;
 use core::cmp::{max, min};
 use core::fmt;
 use core::mem;
-use core::ops::Range;
+use core::ops::{Range, RangeInclusive};
 use unicode_script::{Script, UnicodeScript};
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::fallback::FontFallbackIter;
 use crate::{
     math, Align, AttrsList, CacheKeyFlags, Color, Font, FontSystem, LayoutGlyph, LayoutLine,
-    ShapePlanCache, Wrap,
+    ShapePlanCache, Wrap, CustomSplit,
 };
 
 /// The shaping strategy of some text.
@@ -740,7 +740,7 @@ pub struct ShapeLine {
 // Visual Line Ranges: (span_index, (first_word_index, first_glyph_index), (last_word_index, last_glyph_index))
 type VlRange = (usize, (usize, usize), (usize, usize));
 
-#[derive(Default)]
+#[derive(Default, PartialEq, Debug)]
 struct VisualLine {
     ranges: Vec<VlRange>,
     spaces: u32,
@@ -962,6 +962,7 @@ impl ShapeLine {
         font_size: f32,
         line_width: f32,
         wrap: Wrap,
+        custom_split: Option<CustomSplit>,
         align: Option<Align>,
         match_mono_width: Option<f32>,
     ) -> Vec<LayoutLine> {
@@ -971,6 +972,7 @@ impl ShapeLine {
             font_size,
             line_width,
             wrap,
+            custom_split,
             align,
             &mut lines,
             match_mono_width,
@@ -984,6 +986,7 @@ impl ShapeLine {
         font_size: f32,
         line_width: f32,
         wrap: Wrap,
+        custom_split: Option<CustomSplit>,
         align: Option<Align>,
         layout_lines: &mut Vec<LayoutLine>,
         match_mono_width: Option<f32>,
@@ -1014,13 +1017,445 @@ impl ShapeLine {
             vl.spaces += number_of_blanks;
         }
 
+        fn extend_or_add_to_visual_line(
+            vl: &mut VisualLine,
+            span_index: usize,
+            start: (usize, usize),
+            end: (usize, usize),
+            width: f32,
+            number_of_blanks: u32,
+        ) {
+            if end == start {
+                return;
+            }
+
+            'EXTEND: {
+                if let Some(last) = vl.ranges.last_mut() {
+                    if last.0 == span_index {
+                        last.1 = min(start, last.1);
+                        last.2 = max(end, last.2);
+                        break 'EXTEND;
+                    }
+                }
+
+                // Not same span, add new range
+                vl.ranges.push((span_index, start, end));
+            }
+
+            vl.w += width;
+            vl.spaces += number_of_blanks;
+        }
+
         // This would keep the maximum number of spans that would fit on a visual line
         // If one span is too large, this variable will hold the range of words inside that span
         // that fits on a line.
         // let mut current_visual_line: Vec<VlRange> = Vec::with_capacity(1);
         let mut current_visual_line = VisualLine::default();
 
-        if wrap == Wrap::None {
+        if let Some(custom_split) = custom_split {
+            let word_min_start = |word: &ShapeWord| {
+                word.glyphs.iter().map(|g| g.start).min().unwrap_or_default()
+            };
+            let word_max_end = |word: &ShapeWord| {
+                word.glyphs.iter().map(|g| g.end).max().unwrap_or_default()
+            };
+            let span_min_start = |span: &ShapeSpan| {
+                span.words.iter().map(word_min_start).min().unwrap_or_default()
+            };
+            let span_max_end = |span: &ShapeSpan| {
+                span.words.iter().map(word_max_end).max().unwrap_or_default()
+            };
+
+            let skip_before = custom_split.skip_before.unwrap_or_default();
+            let skip_after = custom_split.skip_after.unwrap_or(usize::MAX);
+
+            // (span_idx, word_idx, glyph_idx)
+            let mut curr_pos = if self.rtl == self.spans.first().map(|span| span.level.is_rtl()).unwrap_or(self.rtl) {
+                (0, 0, 0)
+            } else {
+                (0, self.spans[0].words.len(), self.spans[0].words.last().map(|w| w.glyphs.len()).unwrap_or(0))
+            };
+
+            let max_pos = self.spans
+                .iter()
+                .enumerate()
+                .last()
+                .map(|(max_span, last_span)| {
+                    last_span.words
+                        .iter()
+                        .enumerate()
+                        .last()
+                        .map(|(max_word, last_word)| (max_span, max_word, last_word.glyphs.len().max(1) - 1))
+                        .unwrap_or((max_span, 0, 0))
+                }).unwrap_or((0, 0, 0));
+
+            let mut mk_and_push_visual_line = |line_range: RangeInclusive<usize>| {
+                //dbg!(&line_range);
+                let mut vl = VisualLine::default();
+                let mut reached_end = false;
+
+                macro_rules! span {
+                    () => { &self.spans[curr_pos.0] };
+                }
+
+                macro_rules! word {
+                    () => { &span!().words[curr_pos.1] };
+                }
+
+                macro_rules! glyph {
+                    () => { &word!().glyphs[curr_pos.2] };
+                }
+
+                macro_rules! curr_span_last_word_idx {
+                    () => { span!().words.len() - 1 };
+                }
+
+                macro_rules! curr_word_last_glyph_idx {
+                    () => { word!().glyphs.len() - 1 };
+                }
+
+                macro_rules! span_start_pos {
+                    () => {{
+                        // Don't invoke on non-`check_forward!()`ed curr_pos
+                        assert!(curr_pos <= max_pos);
+                        if congruent_span!() {
+                            (curr_pos.0, 0, 0)
+                        } else {
+                            let last_w_idx = curr_span_last_word_idx!();
+                            let last_g_idx = span!().words[last_w_idx].glyphs.len() - 1;
+                            (curr_pos.0, last_w_idx, last_g_idx)
+                        }
+                    }};
+                }
+
+                macro_rules! word_start_pos {
+                    () => {{
+                        // Don't invoke on non-`check_forward!()`ed curr_pos
+                        assert!(curr_pos <= max_pos);
+                        if congruent_span!() {
+                            (curr_pos.0, curr_pos.1, 0)
+                        } else {
+                            (curr_pos.0, curr_pos.1, curr_word_last_glyph_idx!())
+                        }
+                    }};
+                }
+
+                macro_rules! full_span_in_line {
+                    () => {{
+                        let min_start = span_min_start(span!());
+                        let max_end = span_max_end(span!());
+                        line_range.contains(&min_start) && line_range.contains(&max_end)
+                    }};
+                }
+
+                macro_rules! full_word_in_line {
+                    () => {{
+                        let min_start = word_min_start(word!());
+                        let max_end = word_max_end(word!());
+                        line_range.contains(&min_start) && line_range.contains(&max_end)
+                    }};
+                }
+
+                macro_rules! congruent_span {
+                    () => {
+                        self.rtl == span!().level.is_rtl()
+                    };
+                }
+
+                macro_rules! forward_span {
+                    () => {
+                        curr_pos.0 += 1;
+                        if curr_pos.0 > max_pos.0 {
+                            reached_end = true;
+                        } else {
+                            // avoid triggering assert in span_start_pos!() if incongruent
+                            curr_pos.2 = 0;
+                            curr_pos.1 = 0;
+                            curr_pos = span_start_pos!();
+                        }
+                    };
+                }
+
+                macro_rules! check_forward {
+                    () => {
+                        if !reached_end {
+                            if congruent_span!() {
+                                check_forward!(congruent)
+                            } else {
+                                check_forward!(incongruent)
+                            }
+                        }
+                    };
+                    (congruent) => {
+                        'CHECK_FORWARD: {
+                            if curr_pos > max_pos {
+                                reached_end = true;
+                                break 'CHECK_FORWARD;
+                            }
+
+                            if curr_pos.1 < span!().words.len() && curr_pos.2 >= word!().glyphs.len() {
+                                curr_pos.2 = 0;
+                                curr_pos.1 += 1;
+                            }
+
+                            if curr_pos.1 >= span!().words.len() {
+                                forward_span!();
+                            }
+
+                            if curr_pos.0 >= self.spans.len() {
+                                reached_end = true;
+                            }
+                        }
+                    };
+                    (incongruent) => {
+                        'CHECK_FORWARD: {
+                            if curr_pos.0 > max_pos.0 {
+                                reached_end = true;
+                                break 'CHECK_FORWARD;
+                            }
+
+                            if !reached_end && curr_pos.1 == usize::MAX {
+                                if curr_pos.0 == max_pos.0 {
+                                    reached_end = true;
+                                    break 'CHECK_FORWARD;
+                                }
+                                forward_span!();
+                            }
+
+                            if !reached_end && curr_pos.2 == usize::MAX {
+                                if curr_pos.1 == 0 && curr_pos.0 == max_pos.0 {
+                                    reached_end = true;
+                                    break 'CHECK_FORWARD;
+                                } else if curr_pos.1 == 0 {
+                                    forward_span!();
+                                } else {
+                                    curr_pos.1 -=1;
+                                    curr_pos = word_start_pos!();
+                                }
+                            }
+                        }
+                    };
+                }
+
+                macro_rules! add_full_span {
+                    () => {{
+                        let span_idx = curr_pos.0;
+                        let words = &span!().words;
+
+                        let blanks = words.iter()
+                            .filter(|w| w.blank)
+                            .count();
+                        let width = words.iter()
+                            .fold(0.0f32, |acc, w| acc + font_size * w.x_advance);
+
+                        //dbg!(span_idx, (0, 0), (words.len(), 0), width, blanks as u32);
+                        extend_or_add_to_visual_line(&mut vl, span_idx, (0, 0), (words.len(), 0), width, blanks as u32);
+                    }};
+                }
+
+                macro_rules! add_full_words {
+                    ($w_range:expr) => {
+                        'ADD_FULL_WORDS: {
+                            if $w_range.is_empty() {
+                                break 'ADD_FULL_WORDS;
+                            }
+
+                            let span_idx = curr_pos.0;
+                            let words_slice = &self.spans[span_idx].words[$w_range];
+
+                            let blanks = words_slice
+                                .iter()
+                                .filter(|w| w.blank)
+                                .count();
+                            let width = words_slice
+                                .iter()
+                                .fold(0.0f32, |acc, w| acc + font_size * w.x_advance);
+
+                            //dbg!(span_idx, ($w_range.start, 0), ($w_range.end, 0), width, blanks as u32);
+                            extend_or_add_to_visual_line(&mut vl, span_idx, ($w_range.start, 0), ($w_range.end, 0), width, blanks as u32);
+                        }
+                    };
+                }
+
+                macro_rules! add_glyphs {
+                    ($g_range:expr) => {
+                        'ADD_GLYPHS: {
+                            if $g_range.is_empty() {
+                                break 'ADD_GLYPHS;
+                            }
+
+                            let span_idx = curr_pos.0;
+                            let word_idx = curr_pos.1;
+                            let glyphs_slice = &word!().glyphs[$g_range];
+
+                            let width = glyphs_slice
+                                .iter()
+                                .fold(0.0f32, |acc, g| acc + font_size * g.x_advance);
+
+                            //dbg!(span_idx, (word_idx, $g_range.start), (word_idx, $g_range.end), width, 0);
+                            extend_or_add_to_visual_line(&mut vl, span_idx, (word_idx, $g_range.start), (word_idx, $g_range.end), width, 0);
+                        }
+                    };
+                }
+
+                macro_rules! get_glyphs {
+                    () => {{
+                        if congruent_span!() {
+                            get_glyphs!(congruent);
+                        } else {
+                            get_glyphs!(incongruent);
+                        }
+                        check_forward!();
+                        reached_end = reached_end || glyph!().start >= *line_range.end();
+                    }};
+                    (congruent) => {{
+                        let non_inclusive_line_range = *line_range.start()..*line_range.end();
+                        let start_glyph = curr_pos.2;
+                        'GLYPHS: while non_inclusive_line_range.contains(&glyph!().start) {
+                            curr_pos.2 += 1;
+                            if curr_pos.2 == word!().glyphs.len() {
+                                break 'GLYPHS;
+                            }
+                        }
+                        add_glyphs!(start_glyph..curr_pos.2);
+                    }};
+                    (incongruent) => {{
+                        let non_inclusive_line_range = *line_range.start()..*line_range.end();
+                        let start_glyph = curr_pos.2;
+                        'GLYPHS: while non_inclusive_line_range.contains(&glyph!().start) {
+                            curr_pos.2 -= 1;
+                            if curr_pos.2 == usize::MAX {
+                                break 'GLYPHS;
+                            }
+                        }
+                        add_glyphs!({curr_pos.2+1}..{start_glyph+1});
+                    }};
+                }
+
+                macro_rules! get_full_words {
+                    () => {{
+                        if congruent_span!() {
+                            get_full_words!(congruent);
+                        } else {
+                            get_full_words!(incongruent);
+                        }
+                        check_forward!();
+                    }};
+                    (congruent) => {{
+                        let start_word = curr_pos.1;
+
+                        'WORDS: while !reached_end && full_word_in_line!() {
+                            reached_end = word_max_end(word!()) >= *line_range.end();
+                            curr_pos.1 += 1;
+                            if curr_pos.1 >= span!().words.len() {
+                                break 'WORDS;
+                            }
+                        }
+
+                        add_full_words!(start_word..curr_pos.1);
+                        check_forward!();
+                    }};
+                    (incongruent) => {{
+                        let start_word = curr_pos.1;
+
+                        'WORDS: while !reached_end && full_word_in_line!() {
+                            reached_end = word_max_end(word!()) >= *line_range.end();
+                            curr_pos.1 -= 1;
+                            if curr_pos.1 == usize::MAX {
+                                break 'WORDS;
+                            }
+                            curr_pos.2 = word!().glyphs.len() - 1;
+                        }
+
+                        add_full_words!({curr_pos.1+1}..{start_word+1});
+                        check_forward!();
+                    }};
+                }
+
+                macro_rules! get_full_spans {
+                    () => {{
+                        while !reached_end && full_span_in_line!() {
+                            reached_end = span_max_end(span!()) >= *line_range.end();
+                            add_full_span!();
+                            forward_span!();
+                        }
+                    }};
+                }
+
+                //dbg!(curr_pos, max_pos);
+                check_forward!();
+
+                // pre_skip
+                if custom_split.skip_before.is_some() {
+                    while !reached_end && span_max_end(span!()) <= *line_range.start() {
+                        forward_span!();
+                    }
+
+                    while !reached_end && word_max_end(word!()) <= *line_range.start() {
+                        if congruent_span!() {
+                            curr_pos.1 += 1;
+                        } else {
+                            curr_pos.1 -= 1;
+                        }
+                        check_forward!();
+                        if !reached_end {
+                            curr_pos = word_start_pos!();
+                        }
+                    }
+
+                    while !reached_end && glyph!().start < *line_range.start() {
+                        if congruent_span!() {
+                            curr_pos.2 += 1;
+                        } else {
+                            curr_pos.2 -= 1;
+                        }
+                        check_forward!();
+                    }
+                }
+
+                // if remaining glyphs from prev word
+                if !reached_end && curr_pos != word_start_pos!() {
+                    get_glyphs!();
+                }
+
+                // if remaining words from prev span
+                check_forward!();
+                if !reached_end && curr_pos != span_start_pos!() && curr_pos == word_start_pos!() {
+                    get_full_words!();
+                }
+
+                // full spans
+                check_forward!();
+                if !reached_end && curr_pos == span_start_pos!() {
+                    get_full_spans!();
+                }
+
+                // remaining words
+                check_forward!();
+                if !reached_end && curr_pos == word_start_pos!() {
+                    get_full_words!();
+                }
+
+                // remaining glyphs
+                check_forward!();
+                if !reached_end {
+                    get_glyphs!();
+                }
+
+                check_forward!();
+                assert!(reached_end);
+                //visual_lines.push(dbg!(vl));
+                visual_lines.push(vl);
+            };
+
+            //dbg!(&custom_split);
+            for line_idx in 0..=custom_split.new_lines_at.len() {
+                let line_range_start = if line_idx == 0 { skip_before } else { custom_split.new_lines_at[line_idx-1] };
+                let line_range_end = custom_split.new_lines_at.get(line_idx).copied().unwrap_or(skip_after);
+                let line_range = line_range_start..=line_range_end;
+                mk_and_push_visual_line(line_range);
+            }
+        } else if wrap == Wrap::None {
             for (span_index, span) in self.spans.iter().enumerate() {
                 let mut word_range_width = 0.;
                 let mut number_of_blanks: u32 = 0;

@@ -1,7 +1,7 @@
 #[cfg(not(feature = "std"))]
 use alloc::{string::String, vec::Vec};
 
-use crate::{Align, AttrsList, FontSystem, LayoutLine, ShapeBuffer, ShapeLine, Shaping, Wrap};
+use crate::{Align, AttrsList, FontSystem, LayoutLine, ShapeBuffer, ShapeLine, Shaping, Wrap, CustomSplit};
 
 /// A line (or paragraph) of text that is shaped and laid out
 #[derive(Clone, Debug)]
@@ -14,6 +14,7 @@ pub struct BufferLine {
     layout_opt: Option<Vec<LayoutLine>>,
     shaping: Shaping,
     metadata: Option<usize>,
+    custom_split: Option<CustomSplit>,
 }
 
 impl BufferLine {
@@ -29,6 +30,7 @@ impl BufferLine {
             layout_opt: None,
             shaping,
             metadata: None,
+            custom_split: None,
         }
     }
 
@@ -40,13 +42,41 @@ impl BufferLine {
     /// Set text and attributes list
     ///
     /// Will reset shape and layout if it differs from current text and attributes list.
+    /// This will also unconditionally reset custom split.
     /// Returns true if the line was reset
     pub fn set_text<T: AsRef<str>>(&mut self, text: T, attrs_list: AttrsList) -> bool {
         let text = text.as_ref();
-        if text != self.text || attrs_list != self.attrs_list {
+        if text != self.text || attrs_list != self.attrs_list || self.custom_split.is_some() {
             self.text.clear();
             self.text.push_str(text);
             self.attrs_list = attrs_list;
+            self.reset();
+            self.reset_custom_split("set_text");
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Set text, attributes list, and custom split
+    ///
+    /// Will reset shape and layout if it differs from current text, attributes list, or custom
+    /// split.
+    /// Returns true if the line was reset
+    pub fn set_text_with_custom_split<T: AsRef<str>>(
+        &mut self,
+        text: T,
+        attrs_list: AttrsList,
+        custom_split: CustomSplit,
+    ) -> bool {
+        let text = text.as_ref();
+        let custom_split = custom_split.sanitize();
+
+        if text != self.text || attrs_list != self.attrs_list || Some(&custom_split) != self.custom_split() {
+            self.text.clear();
+            self.text.push_str(text);
+            self.attrs_list = attrs_list;
+            self.custom_split = Some(custom_split);
             self.reset();
             true
         } else {
@@ -102,6 +132,8 @@ impl BufferLine {
     ///
     /// The wrap setting of the appended line will be lost
     pub fn append(&mut self, other: Self) {
+        self.reset_custom_split("append");
+
         let len = self.text.len();
         self.text.push_str(other.text());
 
@@ -122,6 +154,8 @@ impl BufferLine {
 
     /// Split off new line at index
     pub fn split_off(&mut self, index: usize) -> Self {
+        self.reset_custom_split("split_off");
+
         let text = self.text.split_off(index);
         let attrs_list = self.attrs_list.split_off(index);
         self.reset();
@@ -129,6 +163,26 @@ impl BufferLine {
         let mut new = Self::new(text, attrs_list, self.shaping);
         new.align = self.align;
         new
+    }
+
+    pub fn custom_split(&self) -> Option<&CustomSplit> {
+        self.custom_split.as_ref()
+    }
+
+    /// Note that with the exception of `set_text_with_custom_split()` in case of no change, any
+    /// operation that mutates text, including `set_text()`, will reset this value.
+    ///
+    /// This takes precedence over `Wrap` value, even if custom_split has no split info.
+    /// In that case, it should be equivalent to setting `Wrap::None`.
+    pub fn set_custom_split(&mut self, custom_split: CustomSplit) {
+        self.custom_split = Some(custom_split.sanitize())
+    }
+
+    fn reset_custom_split(&mut self, fn_name: &'static str) {
+        if self.custom_split.is_some() {
+            log::debug!("BufferLine::{fn_name}() will reset custom_split info");
+            self.custom_split = None;
+        }
     }
 
     /// Reset shaping, layout, and metadata caches
@@ -208,6 +262,7 @@ impl BufferLine {
     ) -> &[LayoutLine] {
         if self.layout_opt.is_none() {
             let align = self.align;
+            let custom_split = self.custom_split.clone();
             let shape = self.shape_in_buffer(scratch, font_system);
             let mut layout = Vec::with_capacity(1);
             shape.layout_to_buffer(
@@ -215,6 +270,7 @@ impl BufferLine {
                 font_size,
                 width,
                 wrap,
+                custom_split,
                 align,
                 &mut layout,
                 match_mono_width,
