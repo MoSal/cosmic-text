@@ -1023,7 +1023,53 @@ impl ShapeLine {
         // let mut current_visual_line: Vec<VlRange> = Vec::with_capacity(1);
         let mut current_visual_line = VisualLine::default();
 
-        if wrap == Wrap::None {
+        if let Some(custom_split) = custom_split {
+            let word_min_start = |word: &ShapeWord| {
+                word.glyphs.iter().map(|g| g.start).min().unwrap_or_default()
+            };
+            let word_max_end = |word: &ShapeWord| {
+                word.glyphs.iter().map(|g| g.end).max().unwrap_or_default()
+            };
+            let span_min_start = |span: &ShapeSpan| {
+                span.words.iter().map(word_min_start).min().unwrap_or_default()
+            };
+            let span_max_end = |span: &ShapeSpan| {
+                span.words.iter().map(word_max_end).max().unwrap_or_default()
+            };
+
+            let skip_before = custom_split.skip_before.unwrap_or_default();
+            let skip_after = custom_split.skip_after.unwrap_or_default();
+            let mut skipped_spans = 0;
+
+            for (mut span_index, span) in self.spans.iter().enumerate() {
+                let min_start = span_min_start(span);
+                let max_end = span_max_end(span);
+
+                if min_start < skip_before && max_end > skip_after {
+                    skipped_spans += 1;
+                }
+
+                span_index -= skipped_spans;
+
+                let mut word_range_width = 0.;
+                let mut number_of_blanks: u32 = 0;
+                for word in span.words.iter() {
+                    let word_width = font_size * word.x_advance;
+                    word_range_width += word_width;
+                    if word.blank {
+                        number_of_blanks += 1;
+                    }
+                }
+                add_to_visual_line(
+                    &mut current_visual_line,
+                    span_index,
+                    (0, 0),
+                    (span.words.len(), 0),
+                    word_range_width,
+                    number_of_blanks,
+                );
+            }
+        } else if wrap == Wrap::None {
             for (span_index, span) in self.spans.iter().enumerate() {
                 let mut word_range_width = 0.;
                 let mut number_of_blanks: u32 = 0;
