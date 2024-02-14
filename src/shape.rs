@@ -1053,18 +1053,26 @@ impl ShapeLine {
 
                 let mut word_range_width = 0.;
                 let mut number_of_blanks: u32 = 0;
+                let mut skipped_words = 0;
                 for word in span.words.iter() {
-                    let word_width = font_size * word.x_advance;
-                    word_range_width += word_width;
-                    if word.blank {
-                        number_of_blanks += 1;
+                    let min_start = word_min_start(word);
+                    let max_end = word_max_end(word);
+
+                    if min_start < skip_before && max_end > skip_after {
+                        skipped_words += 1;
+                    } else {
+                        let word_width = font_size * word.x_advance;
+                        word_range_width += word_width;
+                        if word.blank {
+                            number_of_blanks += 1;
+                        }
                     }
                 }
                 add_to_visual_line(
                     &mut current_visual_line,
                     span_index,
                     (0, 0),
-                    (span.words.len(), 0),
+                    (span.words.len() - skipped_words, 0),
                     word_range_width,
                     number_of_blanks,
                 );
