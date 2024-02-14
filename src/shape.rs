@@ -1050,32 +1050,76 @@ impl ShapeLine {
                 }
 
                 span_index -= skipped_spans;
+                let mut skipped_words = 0;
+                let mut skipped_glyphs = 0;
+                let mut last_included_glyph_i = 0;
 
                 let mut word_range_width = 0.;
                 let mut number_of_blanks: u32 = 0;
-                let mut skipped_words = 0;
-                for word in span.words.iter() {
-                    let min_start = word_min_start(word);
-                    let max_end = word_max_end(word);
 
-                    if min_start < skip_before && max_end > skip_after {
-                        skipped_words += 1;
-                    } else {
-                        let word_width = font_size * word.x_advance;
-                        word_range_width += word_width;
-                        if word.blank {
-                            number_of_blanks += 1;
+                // Create the word ranges that fits in a visual line
+                if self.rtl != span.level.is_rtl() {
+                    todo!()
+                } else {
+                    // congruent direction
+                    //let mut fitting_start = (0, 0);
+                    'WORDS: for (i, word) in span.words.iter().enumerate() {
+                        let min_start = word_min_start(word);
+                        let max_end = word_max_end(word);
+
+                        if min_start < skip_before && max_end > skip_after {
+                            skipped_words += 1;
+                        } else if min_start >= skip_before && max_end <= skip_after {
+                            // word fully outside skipped ranges
+                            let word_width = font_size * word.x_advance;
+
+                            if word.blank {
+                                number_of_blanks += 1;
+                            }
+
+                            word_range_width += word_width;
+                            continue 'WORDS;
+                        } else {
+                            // word partially outside skipped ranges
+                            'GLYPHS: for (glyph_i, glyph) in word.glyphs.iter().enumerate() {
+                                // We deliberately only check for skip_before here. If a glyph
+                                // starts before skip_after, we consider it in layout range.
+                                if glyph.start >= skip_before  {
+                                    let glyph_width = font_size * glyph.x_advance;
+                                    word_range_width += glyph_width;
+                                    last_included_glyph_i = glyph_i;
+                                    continue 'GLYPHS;
+                                } else {
+                                    skipped_glyphs += 1;
+                                    /*
+                                    add_to_visual_line(
+                                        &mut current_visual_line,
+                                        span_index,
+                                        fitting_start,
+                                        (i - skipped_words, glyph_i - skipped_glyphs),
+                                        word_range_width,
+                                        number_of_blanks,
+                                    );
+                                    visual_lines.push(current_visual_line);
+                                    current_visual_line = VisualLine::default();
+
+                                    number_of_blanks = 0;
+                                    word_range_width = glyph_width;
+                                    fitting_start = (i, glyph_i);
+                                    */
+                                }
+                            }
                         }
+                        add_to_visual_line(
+                            &mut current_visual_line,
+                            span_index,
+                            (0, 0),
+                            (span.words.len() - skipped_words, last_included_glyph_i - skipped_glyphs),
+                            word_range_width,
+                            number_of_blanks,
+                        );
                     }
                 }
-                add_to_visual_line(
-                    &mut current_visual_line,
-                    span_index,
-                    (0, 0),
-                    (span.words.len() - skipped_words, 0),
-                    word_range_width,
-                    number_of_blanks,
-                );
             }
         } else if wrap == Wrap::None {
             for (span_index, span) in self.spans.iter().enumerate() {
