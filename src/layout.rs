@@ -97,8 +97,8 @@ pub struct LayoutLine {
     pub glyphs: Vec<LayoutGlyph>,
 }
 
-/// Custom visual line splitting. Takes precedence over `Wrap` mode.
-#[derive(Clone, Debug)]
+/// Custom layout line splitting of a `BufferLine`. Takes precedence over `Wrap` mode.
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct CustomSplit {
     /// Skip glyphs belonging to text with byte indices less than this value in layout.
     /// This is useful if a pre-context is possibly required to get correct shaping results.
