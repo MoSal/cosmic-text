@@ -1121,11 +1121,16 @@ impl ShapeLine {
                             word_range_width += word_width;
 
                             if max_end == curr_line_ending {
+                                let next_start = if incongruent_span {
+                                    (i - skipped_words, 0)
+                                } else {
+                                    (i - skipped_words, word.glyphs.len())
+                                };
                                 add_to_visual_line(
                                     &mut current_visual_line,
                                     dbg!(span_index),
-                                    dbg!(if incongruent_span { (i - skipped_words, 0) } else { start }),
-                                    dbg!(if incongruent_span { start } else { (i - skipped_words, word.glyphs.len()) }),
+                                    dbg!(if incongruent_span { next_start } else { start }),
+                                    dbg!(if incongruent_span { start } else { next_start }),
                                     dbg!(word_range_width),
                                     dbg!(number_of_blanks),
                                 );
@@ -1135,7 +1140,7 @@ impl ShapeLine {
 
                                 number_of_blanks = 0;
                                 word_range_width = 0.0;
-                                start = (i - skipped_words, word.glyphs.len());
+                                start = next_start;
                             }
                             continue 'WORDS;
                         }
@@ -1158,11 +1163,17 @@ impl ShapeLine {
                                 word_range_width += glyph_width;
                                 continue 'GLYPHS;
                             } else {
+                                let next_start = if incongruent_span {
+                                    (i - skipped_words, glyph_i - skipped_glyphs + 1)
+                                } else {
+                                    (i - skipped_words, glyph_i - skipped_glyphs)
+                                };
+
                                 add_to_visual_line(
                                     &mut current_visual_line,
                                     dbg!(span_index),
-                                    dbg!(if incongruent_span { (i - skipped_words, glyph_i + 1 - skipped_glyphs) } else { start }),
-                                    dbg!(if incongruent_span { start } else { (i - skipped_words, glyph_i - skipped_glyphs) }),
+                                    dbg!(if incongruent_span { next_start } else { start }),
+                                    dbg!(if incongruent_span { start } else { next_start }),
                                     dbg!(word_range_width),
                                     dbg!(number_of_blanks),
                                 );
