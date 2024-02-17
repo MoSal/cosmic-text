@@ -180,7 +180,7 @@ impl BufferLine {
 
     fn reset_custom_split(&mut self, fn_name: &'static str) {
         if self.custom_split.is_some() {
-            log::warn!("BufferLine::{fn_name}() will reset custom_split info");
+            log::debug!("BufferLine::{fn_name}() will reset custom_split info");
             self.custom_split = None;
         }
     }
