@@ -1048,15 +1048,11 @@ impl ShapeLine {
 
             let mut curr_line_ending = line_endings.next().unwrap_or(skip_after);
 
-            dbg!(curr_line_ending);
-
             let mut skipped_spans = 0;
 
             for (mut span_index, span) in self.spans.iter().enumerate() {
                 let min_start = span_min_start(span);
                 let max_end = span_max_end(span);
-
-                dbg!(min_start, max_end);
 
                 if min_start < skip_before && max_end > skip_after {
                     skipped_spans += 1;
@@ -1088,7 +1084,7 @@ impl ShapeLine {
                 }
 
                 // Create the word ranges that fits in a visual line
-                let (mut start, words_iter) = if dbg!(incongruent_span) {
+                let (mut start, words_iter) = if incongruent_span {
                     (
                         (span.words.len(), 0),
                         ForwardReverseIter::Reverse(span.words.iter().enumerate().rev()),
@@ -1128,13 +1124,13 @@ impl ShapeLine {
                                 };
                                 add_to_visual_line(
                                     &mut current_visual_line,
-                                    dbg!(span_index),
-                                    dbg!(if incongruent_span { next_start } else { start }),
-                                    dbg!(if incongruent_span { start } else { next_start }),
-                                    dbg!(word_range_width),
-                                    dbg!(number_of_blanks),
+                                    span_index,
+                                    if incongruent_span { next_start } else { start },
+                                    if incongruent_span { start } else { next_start },
+                                    word_range_width,
+                                    number_of_blanks,
                                 );
-                                visual_lines.push(dbg!(current_visual_line));
+                                visual_lines.push(current_visual_line);
                                 current_visual_line = VisualLine::default();
                                 curr_line_ending = line_endings.next().unwrap_or(skip_after);
 
@@ -1171,13 +1167,13 @@ impl ShapeLine {
 
                                 add_to_visual_line(
                                     &mut current_visual_line,
-                                    dbg!(span_index),
-                                    dbg!(if incongruent_span { next_start } else { start }),
-                                    dbg!(if incongruent_span { start } else { next_start }),
-                                    dbg!(word_range_width),
-                                    dbg!(number_of_blanks),
+                                    span_index,
+                                    if incongruent_span { next_start } else { start },
+                                    if incongruent_span { start } else { next_start },
+                                    word_range_width,
+                                    number_of_blanks,
                                 );
-                                visual_lines.push(dbg!(current_visual_line));
+                                visual_lines.push(current_visual_line);
                                 current_visual_line = VisualLine::default();
                                 curr_line_ending = line_endings.next().unwrap_or(usize::MAX);
 
@@ -1203,15 +1199,15 @@ impl ShapeLine {
                 };
                 add_to_visual_line(
                     &mut current_visual_line,
-                    dbg!(span_index),
-                    dbg!(full_span_start),
-                    dbg!(full_span_end),
-                    dbg!(word_range_width),
-                    dbg!(number_of_blanks),
+                    span_index,
+                    full_span_start,
+                    full_span_end,
+                    word_range_width,
+                    number_of_blanks,
                 );
             }
             if current_visual_line != VisualLine::default() {
-                visual_lines.push(dbg!(current_visual_line));
+                visual_lines.push(current_visual_line);
                 current_visual_line = VisualLine::default();
             }
         } else if wrap == Wrap::None {
