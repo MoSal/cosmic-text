@@ -741,7 +741,7 @@ pub struct ShapeLine {
 // Visual Line Ranges: (span_index, (first_word_index, first_glyph_index), (last_word_index, last_glyph_index))
 type VlRange = (usize, (usize, usize), (usize, usize));
 
-#[derive(Default)]
+#[derive(Default, PartialEq, Debug)]
 struct VisualLine {
     ranges: Vec<VlRange>,
     spaces: u32,
@@ -1048,11 +1048,15 @@ impl ShapeLine {
 
             let mut curr_line_ending = line_endings.next().unwrap_or(skip_after);
 
+            dbg!(curr_line_ending);
+
             let mut skipped_spans = 0;
 
             for (mut span_index, span) in self.spans.iter().enumerate() {
                 let min_start = span_min_start(span);
                 let max_end = span_max_end(span);
+
+                dbg!(min_start, max_end);
 
                 if min_start < skip_before && max_end > skip_after {
                     skipped_spans += 1;
@@ -1119,13 +1123,13 @@ impl ShapeLine {
                             if max_end == curr_line_ending {
                                 add_to_visual_line(
                                     &mut current_visual_line,
-                                    span_index,
-                                    start,
-                                    (i - skipped_words, 0),
-                                    word_range_width,
-                                    number_of_blanks,
+                                    dbg!(span_index),
+                                    dbg!(if incongruent_span { (i - skipped_words, 0) } else { start }),
+                                    dbg!(if incongruent_span { start } else { (i - skipped_words, 0) }),
+                                    dbg!(word_range_width),
+                                    dbg!(number_of_blanks),
                                 );
-                                visual_lines.push(current_visual_line);
+                                visual_lines.push(dbg!(current_visual_line));
                                 current_visual_line = VisualLine::default();
                                 curr_line_ending = line_endings.next().unwrap_or(skip_after);
 
@@ -1156,19 +1160,19 @@ impl ShapeLine {
                             } else {
                                 add_to_visual_line(
                                     &mut current_visual_line,
-                                    span_index,
-                                    (i - skipped_words, glyph_i + 1 - skipped_glyphs),
-                                    start,
-                                    word_range_width,
-                                    number_of_blanks,
+                                    dbg!(span_index),
+                                    dbg!(if incongruent_span { (i - skipped_words, glyph_i + 1 - skipped_glyphs) } else { start }),
+                                    dbg!(if incongruent_span { start } else { (i - skipped_words, glyph_i - skipped_glyphs) }),
+                                    dbg!(word_range_width),
+                                    dbg!(number_of_blanks),
                                 );
-                                visual_lines.push(current_visual_line);
+                                visual_lines.push(dbg!(current_visual_line));
                                 current_visual_line = VisualLine::default();
                                 curr_line_ending = line_endings.next().unwrap_or(usize::MAX);
 
                                 number_of_blanks = 0;
                                 word_range_width = glyph_width;
-                                start = (i - skipped_words, glyph_i + 1 - skipped_glyphs);
+                                start = (i - skipped_words, glyph_i + if incongruent_span{ 1 } else { 0 } - skipped_glyphs);
                             }
                         } else {
                             skipped_glyphs += 1;
@@ -1188,12 +1192,16 @@ impl ShapeLine {
                 };
                 add_to_visual_line(
                     &mut current_visual_line,
-                    span_index,
-                    full_span_start,
-                    full_span_end,
-                    word_range_width,
-                    number_of_blanks,
+                    dbg!(span_index),
+                    dbg!(full_span_start),
+                    dbg!(full_span_end),
+                    dbg!(word_range_width),
+                    dbg!(number_of_blanks),
                 );
+            }
+            if current_visual_line != VisualLine::default() {
+                visual_lines.push(dbg!(current_visual_line));
+                current_visual_line = VisualLine::default();
             }
         } else if wrap == Wrap::None {
             for (span_index, span) in self.spans.iter().enumerate() {
