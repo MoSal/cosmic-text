@@ -1088,7 +1088,7 @@ impl ShapeLine {
                 }
 
                 // Create the word ranges that fits in a visual line
-                let (mut start, words_iter) = if incongruent_span {
+                let (mut start, words_iter) = if dbg!(incongruent_span) {
                     (
                         (span.words.len(), 0),
                         ForwardReverseIter::Reverse(span.words.iter().enumerate().rev()),
@@ -1125,7 +1125,7 @@ impl ShapeLine {
                                     &mut current_visual_line,
                                     dbg!(span_index),
                                     dbg!(if incongruent_span { (i - skipped_words, 0) } else { start }),
-                                    dbg!(if incongruent_span { start } else { (i - skipped_words, 0) }),
+                                    dbg!(if incongruent_span { start } else { (i - skipped_words, word.glyphs.len()) }),
                                     dbg!(word_range_width),
                                     dbg!(number_of_blanks),
                                 );
@@ -1135,7 +1135,7 @@ impl ShapeLine {
 
                                 number_of_blanks = 0;
                                 word_range_width = 0.0;
-                                start = (i - skipped_words, 0);
+                                start = (i - skipped_words, word.glyphs.len());
                             }
                             continue 'WORDS;
                         }
