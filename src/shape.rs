@@ -1038,6 +1038,8 @@ impl ShapeLine {
                 span.words.iter().map(word_max_end).max().unwrap_or_default()
             };
 
+            let has_ctx = custom_split.skip_before.is_some() || custom_split.skip_after.is_some();
+
             let skip_before = custom_split.skip_before.unwrap_or_default();
             let skip_after = custom_split.skip_after.unwrap_or(usize::MAX);
 
@@ -1050,12 +1052,17 @@ impl ShapeLine {
 
             let mut skipped_spans = 0;
 
-            for (mut span_index, span) in self.spans.iter().enumerate() {
+            'SPANS: for (mut span_index, span) in self.spans.iter().enumerate() {
                 let min_start = span_min_start(span);
                 let max_end = span_max_end(span);
 
-                if min_start < skip_before && max_end > skip_after {
+                if has_ctx {
+                    dbg!(min_start, max_end, skip_before, skip_after);
+                }
+
+                if max_end < skip_before || min_start > skip_after {
                     skipped_spans += 1;
+                    continue 'SPANS;
                 }
 
                 span_index -= skipped_spans;
@@ -1100,7 +1107,11 @@ impl ShapeLine {
                     let min_start = word_min_start(word);
                     let max_end = word_max_end(word);
 
-                    if min_start < skip_before && max_end > skip_after {
+                    if has_ctx {
+                        dbg!(min_start, max_end, skip_before, skip_after);
+                    }
+
+                    if max_end < skip_before || min_start > skip_after {
                         skipped_words += 1;
                         continue 'WORDS;
                     }
@@ -1130,7 +1141,7 @@ impl ShapeLine {
                                     word_range_width,
                                     number_of_blanks,
                                 );
-                                visual_lines.push(current_visual_line);
+                                visual_lines.push(dbg!(current_visual_line));
                                 current_visual_line = VisualLine::default();
                                 curr_line_ending = line_endings.next().unwrap_or(skip_after);
 
@@ -1152,7 +1163,7 @@ impl ShapeLine {
                     'GLYPHS: for (glyph_i, glyph) in glyphs_iter {
                         // We deliberately only check for skip_before here. If a glyph
                         // starts before skip_after, we consider it in layout range.
-                        if glyph.start >= skip_before {
+                        if glyph.start > skip_before {
                             let glyph_width = font_size * glyph.x_advance;
 
                             if glyph.end <= curr_line_ending {
@@ -1173,7 +1184,7 @@ impl ShapeLine {
                                     word_range_width,
                                     number_of_blanks,
                                 );
-                                visual_lines.push(current_visual_line);
+                                visual_lines.push(dbg!(current_visual_line));
                                 current_visual_line = VisualLine::default();
                                 curr_line_ending = line_endings.next().unwrap_or(usize::MAX);
 
@@ -1182,7 +1193,8 @@ impl ShapeLine {
                                 start = (i - skipped_words, glyph_i + if incongruent_span{ 1 } else { 0 } - skipped_glyphs);
                             }
                         } else {
-                            skipped_glyphs += 1;
+                            start = (i - skipped_words, glyph_i + if incongruent_span{ 1 } else { 0 } - skipped_glyphs);
+                            //skipped_glyphs += 1;
                         }
                     }
                 }
@@ -1207,7 +1219,7 @@ impl ShapeLine {
                 );
             }
             if current_visual_line != VisualLine::default() {
-                visual_lines.push(current_visual_line);
+                visual_lines.push(dbg!(current_visual_line));
                 current_visual_line = VisualLine::default();
             }
         } else if wrap == Wrap::None {
