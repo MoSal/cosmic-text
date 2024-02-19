@@ -1058,7 +1058,7 @@ impl ShapeLine {
                     dbg!(min_start, max_end, skip_before, skip_after);
                 }
 
-                if max_end < skip_before || min_start > skip_after {
+                if max_end <= skip_before || min_start >= skip_after {
                     continue 'SPANS;
                 }
 
@@ -1110,11 +1110,12 @@ impl ShapeLine {
                         (i, word.glyphs.len())
                     };
 
-                    if max_end < skip_before || min_start > skip_after {
+                    if max_end <= skip_before || min_start >= skip_after {
                         if max_end <= skip_before {
                             start = next_start;
                             continue 'WORDS;
                         } else {
+                            /*
                             if has_ctx {
                                 dbg!(
                                     &current_visual_line,
@@ -1133,6 +1134,7 @@ impl ShapeLine {
                                 word_range_width,
                                 number_of_blanks,
                             );
+                            */
                             break 'SPANS;
                         }
                     }
