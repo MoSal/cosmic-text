@@ -1062,8 +1062,6 @@ impl ShapeLine {
                     continue 'SPANS;
                 }
 
-                let mut skipped_words = 0;
-
                 let mut word_range_width = 0.;
                 let mut number_of_blanks: u32 = 0;
 
@@ -1106,8 +1104,14 @@ impl ShapeLine {
                         dbg!(min_start, max_end, skip_before, skip_after);
                     }
 
+                    let next_start = if incongruent_span {
+                        (i, 0)
+                    } else {
+                        (i, word.glyphs.len())
+                    };
+
                     if max_end <= skip_before || min_start >= skip_after {
-                        skipped_words += 1;
+                        start = next_start;
                         continue 'WORDS;
                     }
 
@@ -1123,11 +1127,6 @@ impl ShapeLine {
                             word_range_width += word_width;
 
                             if max_end == curr_line_ending {
-                                let next_start = if incongruent_span {
-                                    (i - skipped_words, 0)
-                                } else {
-                                    (i - skipped_words, word.glyphs.len())
-                                };
                                 add_to_visual_line(
                                     &mut current_visual_line,
                                     span_index,
@@ -1157,9 +1156,9 @@ impl ShapeLine {
 
                     'GLYPHS: for (glyph_i, glyph) in glyphs_iter {
                         let next_start = if incongruent_span {
-                            (i - skipped_words, glyph_i + 1)
+                            (i, glyph_i + 1)
                         } else {
-                            (i - skipped_words, glyph_i)
+                            (i, glyph_i)
                         };
 
                         // We deliberately only check for skip_before here. If a glyph
@@ -1200,7 +1199,7 @@ impl ShapeLine {
                 } else {
                     (
                         start,
-                        (span.words.len() - skipped_words, 0),
+                        (span.words.len(), 0),
                     )
                 };
                 add_to_visual_line(
