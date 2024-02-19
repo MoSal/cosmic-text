@@ -1104,7 +1104,7 @@ impl ShapeLine {
                         dbg!(min_start, max_end, skip_before, skip_after);
                     }
 
-                    let next_start = if incongruent_span {
+                    let next_start = || if incongruent_span {
                         (i, 0)
                     } else {
                         (i, word.glyphs.len())
@@ -1112,7 +1112,7 @@ impl ShapeLine {
 
                     if max_end <= skip_before || min_start >= skip_after {
                         if max_end <= skip_before {
-                            start = next_start;
+                            start = next_start();
                             continue 'WORDS;
                         } else {
                             /*
@@ -1156,7 +1156,7 @@ impl ShapeLine {
                                         &current_visual_line,
                                         span_index,
                                         start,
-                                        next_start,
+                                        next_start(),
                                         word_range_width,
                                         number_of_blanks,
                                     );
@@ -1164,8 +1164,8 @@ impl ShapeLine {
                                 add_to_visual_line(
                                     &mut current_visual_line,
                                     span_index,
-                                    if incongruent_span { next_start } else { start },
-                                    if incongruent_span { start } else { next_start },
+                                    if incongruent_span { next_start() } else { start },
+                                    if incongruent_span { start } else { next_start() },
                                     word_range_width,
                                     number_of_blanks,
                                 );
@@ -1178,7 +1178,7 @@ impl ShapeLine {
 
                                 number_of_blanks = 0;
                                 word_range_width = 0.0;
-                                start = next_start;
+                                start = next_start();
                             }
                             continue 'WORDS;
                         }
@@ -1192,7 +1192,7 @@ impl ShapeLine {
                     };
 
                     'GLYPHS: for (glyph_i, glyph) in glyphs_iter {
-                        let next_start = if incongruent_span {
+                        let next_start = || if incongruent_span {
                             (i, glyph_i + 1)
                         } else {
                             (i, glyph_i)
@@ -1216,7 +1216,7 @@ impl ShapeLine {
                                         &current_visual_line,
                                         span_index,
                                         start,
-                                        next_start,
+                                        next_start(),
                                         word_range_width,
                                         number_of_blanks,
                                     );
@@ -1224,8 +1224,8 @@ impl ShapeLine {
                                 add_to_visual_line(
                                     &mut current_visual_line,
                                     span_index,
-                                    if incongruent_span { next_start } else { start },
-                                    if incongruent_span { start } else { next_start },
+                                    if incongruent_span { next_start() } else { start },
+                                    if incongruent_span { start } else { next_start() },
                                     word_range_width,
                                     number_of_blanks,
                                 );
@@ -1238,10 +1238,10 @@ impl ShapeLine {
 
                                 number_of_blanks = 0;
                                 word_range_width = glyph_width;
-                                start = next_start;
+                                start = next_start();
                             }
                         } else if glyph.start < skip_after {
-                            start = next_start;
+                            start = next_start();
                         } else {
                             /*
                             if has_ctx {
