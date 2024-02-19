@@ -1161,9 +1161,9 @@ impl ShapeLine {
                             (i, glyph_i)
                         };
 
-                        // We deliberately only check for skip_before here. If a glyph
+                        // We deliberately only check for glyph.start here. If a glyph
                         // starts before skip_after, we consider it in layout range.
-                        if glyph.start > skip_before {
+                        if glyph.start > skip_before && glyph.start < skip_after {
                             let glyph_width = font_size * glyph.x_advance;
 
                             if glyph.end <= curr_line_ending {
