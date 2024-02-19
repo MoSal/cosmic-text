@@ -1058,7 +1058,7 @@ impl ShapeLine {
                     dbg!(min_start, max_end, skip_before, skip_after);
                 }
 
-                if max_end <= skip_before || min_start >= skip_after {
+                if max_end < skip_before || min_start > skip_after {
                     continue 'SPANS;
                 }
 
@@ -1110,11 +1110,21 @@ impl ShapeLine {
                         (i, word.glyphs.len())
                     };
 
-                    if max_end <= skip_before || min_start >= skip_after {
+                    if max_end < skip_before || min_start > skip_after {
                         if max_end <= skip_before {
                             start = next_start;
                             continue 'WORDS;
                         } else {
+                            if has_ctx {
+                                dbg!(
+                                    &current_visual_line,
+                                    span_index,
+                                    start,
+                                    next_start,
+                                    word_range_width,
+                                    number_of_blanks,
+                                );
+                            }
                             add_to_visual_line(
                                 &mut current_visual_line,
                                 span_index,
@@ -1139,6 +1149,16 @@ impl ShapeLine {
                             word_range_width += word_width;
 
                             if max_end == curr_line_ending {
+                                if has_ctx {
+                                    dbg!(
+                                        &current_visual_line,
+                                        span_index,
+                                        start,
+                                        next_start,
+                                        word_range_width,
+                                        number_of_blanks,
+                                    );
+                                }
                                 add_to_visual_line(
                                     &mut current_visual_line,
                                     span_index,
@@ -1148,7 +1168,7 @@ impl ShapeLine {
                                     number_of_blanks,
                                 );
                                 if has_ctx {
-                                    dbg!(&current_visual_line);
+                                    dbg!(&current_visual_line, visual_lines.len());
                                 }
                                 visual_lines.push(current_visual_line);
                                 current_visual_line = VisualLine::default();
@@ -1185,10 +1205,20 @@ impl ShapeLine {
                         if glyph.start > skip_before && glyph.start < skip_after {
                             let glyph_width = font_size * glyph.x_advance;
 
-                            if glyph.end <= curr_line_ending {
+                            if glyph.start < curr_line_ending {
                                 word_range_width += glyph_width;
                                 continue 'GLYPHS;
                             } else {
+                                if has_ctx {
+                                    dbg!(
+                                        &current_visual_line,
+                                        span_index,
+                                        start,
+                                        next_start,
+                                        word_range_width,
+                                        number_of_blanks,
+                                    );
+                                }
                                 add_to_visual_line(
                                     &mut current_visual_line,
                                     span_index,
@@ -1198,7 +1228,7 @@ impl ShapeLine {
                                     number_of_blanks,
                                 );
                                 if has_ctx {
-                                    dbg!(&current_visual_line);
+                                    dbg!(&current_visual_line, visual_lines.len());
                                 }
                                 visual_lines.push(current_visual_line);
                                 current_visual_line = VisualLine::default();
@@ -1211,6 +1241,17 @@ impl ShapeLine {
                         } else if glyph.start < skip_after {
                             start = next_start;
                         } else {
+                            /*
+                            if has_ctx {
+                                dbg!(
+                                    &current_visual_line,
+                                    span_index,
+                                    start,
+                                    next_start,
+                                    word_range_width,
+                                    number_of_blanks,
+                                );
+                            }
                             add_to_visual_line(
                                 &mut current_visual_line,
                                 span_index,
@@ -1219,6 +1260,7 @@ impl ShapeLine {
                                 word_range_width,
                                 number_of_blanks,
                             );
+                            */
                             break 'SPANS;
                         }
                     }
@@ -1234,6 +1276,16 @@ impl ShapeLine {
                         (span.words.len(), 0),
                     )
                 };
+                if has_ctx {
+                    dbg!(
+                        &current_visual_line,
+                        span_index,
+                        start,
+                        //next_start,
+                        word_range_width,
+                        number_of_blanks,
+                    );
+                }
                 add_to_visual_line(
                     &mut current_visual_line,
                     span_index,
@@ -1245,7 +1297,7 @@ impl ShapeLine {
             }
             if current_visual_line != VisualLine::default() {
                 if has_ctx {
-                    dbg!(&current_visual_line);
+                    dbg!(&current_visual_line, visual_lines.len());
                 }
                 visual_lines.push(current_visual_line);
                 current_visual_line = VisualLine::default();
