@@ -1050,9 +1050,7 @@ impl ShapeLine {
 
             let mut curr_line_ending = line_endings.next().unwrap_or(skip_after);
 
-            let mut skipped_spans = 0;
-
-            'SPANS: for (mut span_index, span) in self.spans.iter().enumerate() {
+            'SPANS: for (span_index, span) in self.spans.iter().enumerate() {
                 let min_start = span_min_start(span);
                 let max_end = span_max_end(span);
 
@@ -1061,11 +1059,9 @@ impl ShapeLine {
                 }
 
                 if max_end <= skip_before || min_start >= skip_after {
-                    skipped_spans += 1;
                     continue 'SPANS;
                 }
 
-                span_index -= skipped_spans;
                 let mut skipped_words = 0;
 
                 let mut word_range_width = 0.;
