@@ -1038,7 +1038,7 @@ impl ShapeLine {
                 span.words.iter().map(word_max_end).max().unwrap_or_default()
             };
 
-            let has_ctx = custom_split.skip_before.is_some() || custom_split.skip_after.is_some();
+            let has_ctx = custom_split.skip_after.is_some();
 
             let skip_before = custom_split.skip_before.unwrap_or_default();
             let skip_after = custom_split.skip_after.unwrap_or(usize::MAX);
@@ -1111,8 +1111,20 @@ impl ShapeLine {
                     };
 
                     if max_end <= skip_before || min_start >= skip_after {
-                        start = next_start;
-                        continue 'WORDS;
+                        if max_end <= skip_before {
+                            start = next_start;
+                            continue 'WORDS;
+                        } else {
+                            add_to_visual_line(
+                                &mut current_visual_line,
+                                span_index,
+                                if incongruent_span { next_start } else { start },
+                                if incongruent_span { start } else { next_start },
+                                word_range_width,
+                                number_of_blanks,
+                            );
+                            break 'SPANS;
+                        }
                     }
 
                     if min_start >= skip_before && max_end <= skip_after {
@@ -1135,7 +1147,10 @@ impl ShapeLine {
                                     word_range_width,
                                     number_of_blanks,
                                 );
-                                visual_lines.push(dbg!(current_visual_line));
+                                if has_ctx {
+                                    dbg!(&current_visual_line);
+                                }
+                                visual_lines.push(current_visual_line);
                                 current_visual_line = VisualLine::default();
                                 curr_line_ending = line_endings.next().unwrap_or(skip_after);
 
@@ -1161,6 +1176,10 @@ impl ShapeLine {
                             (i, glyph_i)
                         };
 
+                        if has_ctx {
+                            dbg!(i, glyph_i, glyph.start, glyph.end);
+                        }
+
                         // We deliberately only check for glyph.start here. If a glyph
                         // starts before skip_after, we consider it in layout range.
                         if glyph.start > skip_before && glyph.start < skip_after {
@@ -1178,7 +1197,10 @@ impl ShapeLine {
                                     word_range_width,
                                     number_of_blanks,
                                 );
-                                visual_lines.push(dbg!(current_visual_line));
+                                if has_ctx {
+                                    dbg!(&current_visual_line);
+                                }
+                                visual_lines.push(current_visual_line);
                                 current_visual_line = VisualLine::default();
                                 curr_line_ending = line_endings.next().unwrap_or(usize::MAX);
 
@@ -1186,8 +1208,18 @@ impl ShapeLine {
                                 word_range_width = glyph_width;
                                 start = next_start;
                             }
-                        } else {
+                        } else if glyph.start < skip_after {
                             start = next_start;
+                        } else {
+                            add_to_visual_line(
+                                &mut current_visual_line,
+                                span_index,
+                                if incongruent_span { next_start } else { start },
+                                if incongruent_span { start } else { next_start },
+                                word_range_width,
+                                number_of_blanks,
+                            );
+                            break 'SPANS;
                         }
                     }
                 }
@@ -1212,7 +1244,10 @@ impl ShapeLine {
                 );
             }
             if current_visual_line != VisualLine::default() {
-                visual_lines.push(dbg!(current_visual_line));
+                if has_ctx {
+                    dbg!(&current_visual_line);
+                }
+                visual_lines.push(current_visual_line);
                 current_visual_line = VisualLine::default();
             }
         } else if wrap == Wrap::None {
