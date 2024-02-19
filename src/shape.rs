@@ -1060,14 +1060,13 @@ impl ShapeLine {
                     dbg!(min_start, max_end, skip_before, skip_after);
                 }
 
-                if max_end < skip_before || min_start > skip_after {
+                if max_end <= skip_before || min_start >= skip_after {
                     skipped_spans += 1;
                     continue 'SPANS;
                 }
 
                 span_index -= skipped_spans;
                 let mut skipped_words = 0;
-                let mut skipped_glyphs = 0;
 
                 let mut word_range_width = 0.;
                 let mut number_of_blanks: u32 = 0;
@@ -1111,7 +1110,7 @@ impl ShapeLine {
                         dbg!(min_start, max_end, skip_before, skip_after);
                     }
 
-                    if max_end < skip_before || min_start > skip_after {
+                    if max_end <= skip_before || min_start >= skip_after {
                         skipped_words += 1;
                         continue 'WORDS;
                     }
@@ -1161,6 +1160,12 @@ impl ShapeLine {
                     };
 
                     'GLYPHS: for (glyph_i, glyph) in glyphs_iter {
+                        let next_start = if incongruent_span {
+                            (i - skipped_words, glyph_i + 1)
+                        } else {
+                            (i - skipped_words, glyph_i)
+                        };
+
                         // We deliberately only check for skip_before here. If a glyph
                         // starts before skip_after, we consider it in layout range.
                         if glyph.start > skip_before {
@@ -1170,12 +1175,6 @@ impl ShapeLine {
                                 word_range_width += glyph_width;
                                 continue 'GLYPHS;
                             } else {
-                                let next_start = if incongruent_span {
-                                    (i - skipped_words, glyph_i - skipped_glyphs + 1)
-                                } else {
-                                    (i - skipped_words, glyph_i - skipped_glyphs)
-                                };
-
                                 add_to_visual_line(
                                     &mut current_visual_line,
                                     span_index,
@@ -1190,11 +1189,10 @@ impl ShapeLine {
 
                                 number_of_blanks = 0;
                                 word_range_width = glyph_width;
-                                start = (i - skipped_words, glyph_i + if incongruent_span{ 1 } else { 0 } - skipped_glyphs);
+                                start = next_start;
                             }
                         } else {
-                            start = (i - skipped_words, glyph_i + if incongruent_span{ 1 } else { 0 } - skipped_glyphs);
-                            //skipped_glyphs += 1;
+                            start = next_start;
                         }
                     }
                 }
