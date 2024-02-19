@@ -1129,12 +1129,13 @@ impl ShapeLine {
                             add_to_visual_line(
                                 &mut current_visual_line,
                                 span_index,
-                                if incongruent_span { next_start } else { start },
-                                if incongruent_span { start } else { next_start },
+                                if incongruent_span { next_start() } else { start },
+                                if incongruent_span { start } else { next_start() },
                                 word_range_width,
                                 number_of_blanks,
                             );
                             */
+                            current_visual_line = VisualLine::default();
                             break 'SPANS;
                         }
                     }
@@ -1257,12 +1258,13 @@ impl ShapeLine {
                             add_to_visual_line(
                                 &mut current_visual_line,
                                 span_index,
-                                if incongruent_span { next_start } else { start },
-                                if incongruent_span { start } else { next_start },
+                                if incongruent_span { next_start() } else { start },
+                                if incongruent_span { start } else { next_start() },
                                 word_range_width,
                                 number_of_blanks,
                             );
                             */
+                            current_visual_line = VisualLine::default();
                             break 'SPANS;
                         }
                     }
