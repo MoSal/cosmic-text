@@ -110,6 +110,17 @@ pub struct CustomSplit {
     pub new_lines_at: Vec<usize>,
 }
 
+impl CustomSplit {
+    pub(crate) fn sanitize(mut self) -> Self {
+        let skip_before = self.skip_before.unwrap_or(0);
+        let skip_after = self.skip_after.unwrap_or(usize::MAX);
+        self.new_lines_at.sort();
+        self.new_lines_at.dedup();
+        self.new_lines_at.retain(|&new_at| new_at <= skip_before && new_at >= skip_after);
+        self
+    }
+}
+
 /// Wrapping mode
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub enum Wrap {

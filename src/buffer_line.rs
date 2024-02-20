@@ -70,6 +70,8 @@ impl BufferLine {
         custom_split: CustomSplit,
     ) -> bool {
         let text = text.as_ref();
+        let custom_split = custom_split.sanitize();
+
         if text != self.text || attrs_list != self.attrs_list || Some(&custom_split) != self.custom_split() {
             self.text.clear();
             self.text.push_str(text);
@@ -173,7 +175,7 @@ impl BufferLine {
     /// This takes precedence over `Wrap` value, even if custom_split has no split info.
     /// In that case, it should be equivalent to setting `Wrap::None`.
     pub fn set_custom_split(&mut self, custom_split: CustomSplit) {
-        self.custom_split = Some(custom_split)
+        self.custom_split = Some(custom_split.sanitize())
     }
 
     fn reset_custom_split(&mut self, fn_name: &'static str) {
