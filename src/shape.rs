@@ -8,7 +8,7 @@ use core::cmp::{max, min};
 use core::fmt;
 use core::iter::Rev;
 use core::mem;
-use core::ops::Range;
+use core::ops::{Range, RangeInclusive};
 use unicode_script::{Script, UnicodeScript};
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -1024,7 +1024,23 @@ impl ShapeLine {
         // let mut current_visual_line: Vec<VlRange> = Vec::with_capacity(1);
         let mut current_visual_line = VisualLine::default();
 
-        if let Some(custom_split) = custom_split {
+        if let Some(mut custom_split) = custom_split {
+            enum ForwardReverseIter<T, I: Iterator<Item=T> + DoubleEndedIterator> {
+                Forward(I),
+                Reverse(Rev<I>),
+            }
+
+            impl<T, I: Iterator<Item=T> + DoubleEndedIterator> Iterator for ForwardReverseIter<T, I> {
+                type Item = T;
+
+                fn next(&mut self) -> Option<Self::Item> {
+                    match self {
+                        Self::Forward(iter) => iter.next(),
+                        Self::Reverse(iter) => iter.next(),
+                    }
+                }
+            }
+
             let word_min_start = |word: &ShapeWord| {
                 word.glyphs.iter().map(|g| g.start).min().unwrap_or_default()
             };
@@ -1043,16 +1059,192 @@ impl ShapeLine {
             let skip_before = custom_split.skip_before.unwrap_or_default();
             let skip_after = custom_split.skip_after.unwrap_or(usize::MAX);
 
-            let mut line_endings = custom_split.new_lines_at
-                .iter()
-                .filter(|&&line_ending| line_ending > skip_before)
-                .copied();
+            // (span_idx, word_idx, glyph_idx)
+            //let mut curr_pos = (0, 0, 0);
 
+            // (span_idx, word_idx, glyph_idx)
+            let mut curr_pos = (0, 0, 0);
+
+            let mut mk_and_push_visual_line = |line_range: RangeInclusive<usize>| {
+                let mut vl = VisualLine::default();
+                let mut reached_end = false;
+
+                let span = || &self.spans[curr_pos.0];
+                let word = || &self.spans[curr_pos.0].words[curr_pos.1];
+
+                let full_span_in_line = || {
+                    let min_start = span_min_start(span());
+                    let max_end = span_max_end(span());
+                    line_range.contains(&min_start) && line_range.contains(&max_end)
+                };
+
+                let full_word_in_line = || {
+                    let min_start = word_min_start(word());
+                    let max_end = word_max_end(word());
+                    line_range.contains(&min_start) && line_range.contains(&max_end)
+                };
+
+                let check_forward = || {
+                    if curr_pos.2 >= word().glyphs.len() {
+                        curr_pos.2 = 0;
+                        curr_pos.1 += 1;
+                    }
+
+                    if curr_pos.1 >= span().words.len() {
+                        curr_pos.1 = 0;
+                        curr_pos.0 += 1;
+                    }
+
+                    if curr_pos.0 >= self.spans.len() {
+                        reached_end = true;
+                    }
+                };
+
+                let add_full_span = || {
+                    let span_idx = curr_pos.0;
+                    let words = &span().words;
+                    if let Some(last_w) = words.last()  {
+                        let blanks = words.iter()
+                            .filter(|w| w.blank)
+                            .count();
+                        let width = words.iter()
+                            .fold(0.0f32, |acc, w| acc + font_size * w.x_advance);
+
+                        add_to_visual_line(&mut vl, span_idx, (0, 0), (words.len(), 0), width, blanks as u32);
+                    }
+                };
+
+                let add_full_words = |w_range: Range<usize>| {
+                    if w_range.is_empty() {
+                        return;
+                    }
+
+                    let span_idx = curr_pos.0;
+                    let words_slice = &self.spans[span_idx].words[w_range];
+                    if let Some(last_w) = words_slice.last() {
+                        let blanks = words_slice
+                            .iter()
+                            .filter(|w| w.blank)
+                            .count();
+                        let width = words_slice
+                            .iter()
+                            .fold(0.0f32, |acc, w| acc + font_size * w.x_advance);
+                        add_to_visual_line(&mut vl, span_idx, (w_range.start, 0), (w_range.end, 0), width, blanks as u32);
+                    }
+                };
+
+                let add_glyphs = |g_range: Range<usize>| {
+                    if g_range.is_empty() {
+                        return;
+                    }
+
+                    let span_idx = curr_pos.0;
+                    let word_idx = curr_pos.1;
+                    let glyphs_slice = &self.spans[span_idx].words[word_idx].glyphs[g_range];
+                    if let Some(last_g) = glyphs_slice.last() {
+                        let width = glyphs_slice
+                            .iter()
+                            .fold(0.0f32, |acc, g| acc + font_size * g.x_advance);
+                        add_to_visual_line(&mut vl, span_idx, (word_idx, g_range.start), (word_idx, g_range.end), width, 0);
+                    }
+
+                };
+
+                let get_glyphs = || {
+                    let start_glyph = curr_pos.2;
+                    let non_inclusive_line_range = *line_range.start()..*line_range.end();
+                    'GLYPHS: while !reached_end && non_inclusive_line_range.contains(&word().glyphs[curr_pos.2].start) {
+                        reached_end = word().glyphs[curr_pos.2].end >= *line_range.end();
+                        curr_pos.2 += 1;
+                        if curr_pos.2 >= word().glyphs.len() {
+                            break 'GLYPHS;
+                        }
+                    }
+                    add_glyphs(start_glyph..curr_pos.2);
+                    check_forward();
+                };
+
+                let get_full_words = || {
+                    let start_word = curr_pos.1;
+
+                    'WORDS: while !reached_end && full_word_in_line() {
+                        reached_end = word_max_end(word()) >= *line_range.end();
+                        curr_pos.1 += 1;
+                        if curr_pos.1 >= span().words.len() {
+                            break 'WORDS;
+                        }
+                    }
+
+                    add_full_words(start_word..curr_pos.1);
+                    check_forward();
+                };
+
+                let get_full_spans = || {
+                    while !reached_end && full_span_in_line() {
+                        add_full_span();
+                        curr_pos.0 +=1;
+                        check_forward();
+                    }
+                };
+
+                // if remaining glyphs from prev word
+                check_forward();
+                if !reached_end && curr_pos.2 != 0 {
+                    get_glyphs();
+                }
+
+
+                // if remaining words from prev span
+                check_forward();
+                if !reached_end && curr_pos.1 != 0 {
+                    assert_eq!(curr_pos.2, 0);
+                    get_full_words();
+                }
+
+                // full spans
+                check_forward();
+                if !reached_end {
+                    assert_eq!(curr_pos.2, 0);
+                    assert_eq!(curr_pos.1, 0);
+                    get_full_spans();
+                }
+
+                // remaining words
+                check_forward();
+                if !reached_end {
+                    assert_eq!(curr_pos.2, 0);
+                    assert_eq!(curr_pos.1, 0);
+                    get_full_words();
+                }
+
+                // remaining glyphs
+                check_forward();
+                if !reached_end {
+                    assert_eq!(curr_pos.2, 0);
+                    get_glyphs();
+                }
+
+                assert!(reached_end);
+                visual_lines.push(vl);
+            };
+
+            for line_idx in 0..=custom_split.new_lines_at.len() {
+                let line_range_start = if line_idx == 0 { skip_before } else { custom_split.new_lines_at[line_idx-1] };
+                let line_range_end = custom_split.new_lines_at.get(line_idx).copied().unwrap_or(skip_after);
+                let line_range = line_range_start..=line_range_end;
+                mk_and_push_visual_line(line_range);
+            }
+
+            /*
             let mut curr_line_ending = line_endings.next().unwrap_or(skip_after);
 
             'SPANS: for (span_index, span) in self.spans.iter().enumerate() {
                 let min_start = span_min_start(span);
                 let max_end = span_max_end(span);
+
+                match (line_range.contains(min_start), line_range.contains(max_end)) {
+                    (false, false)
+                }
 
                 if has_ctx {
                     dbg!(min_start, max_end, skip_before, skip_after);
@@ -1067,21 +1259,6 @@ impl ShapeLine {
 
                 let incongruent_span = self.rtl != span.level.is_rtl();
 
-                enum ForwardReverseIter<T, I: Iterator<Item=T> + DoubleEndedIterator> {
-                    Forward(I),
-                    Reverse(Rev<I>),
-                }
-
-                impl<T, I: Iterator<Item=T> + DoubleEndedIterator> Iterator for ForwardReverseIter<T, I> {
-                    type Item = T;
-
-                    fn next(&mut self) -> Option<Self::Item> {
-                        match self {
-                            Self::Forward(iter) => iter.next(),
-                            Self::Reverse(iter) => iter.next(),
-                        }
-                    }
-                }
 
                 // Create the word ranges that fits in a visual line
                 let (mut start, words_iter) = if incongruent_span {
@@ -1305,7 +1482,7 @@ impl ShapeLine {
                 }
                 visual_lines.push(current_visual_line);
                 current_visual_line = VisualLine::default();
-            }
+            }*/
         } else if wrap == Wrap::None {
             for (span_index, span) in self.spans.iter().enumerate() {
                 let mut word_range_width = 0.;
