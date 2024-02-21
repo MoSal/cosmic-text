@@ -116,7 +116,7 @@ impl CustomSplit {
         let skip_after = self.skip_after.unwrap_or(usize::MAX);
         self.new_lines_at.sort();
         self.new_lines_at.dedup();
-        self.new_lines_at.retain(|&new_at| new_at <= skip_before && new_at >= skip_after);
+        self.new_lines_at.retain(|&new_at| new_at > skip_before && new_at < skip_after);
         self
     }
 }
