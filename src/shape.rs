@@ -1083,20 +1083,33 @@ impl ShapeLine {
                 let mut vl = VisualLine::default();
                 let mut reached_end = false;
 
-                let span = move || &self.spans[curr_pos.0];
-                let word = move || &self.spans[curr_pos.0].words[curr_pos.1];
+                macro_rules! span {
+                    () => { &self.spans[curr_pos.0] };
+                }
 
-                let full_span_in_line = || {
-                    let min_start = span_min_start(span());
-                    let max_end = span_max_end(span());
-                    line_range.contains(&min_start) && line_range.contains(&max_end)
-                };
+                macro_rules! word {
+                    () => { &span!().words[curr_pos.1] };
+                }
 
-                let full_word_in_line = || {
-                    let min_start = word_min_start(word());
-                    let max_end = word_max_end(word());
-                    line_range.contains(&min_start) && line_range.contains(&max_end)
-                };
+                macro_rules! glyph {
+                    () => { &word!().glyphs[curr_pos.2] };
+                }
+
+                macro_rules! full_span_in_line {
+                    () => {{
+                        let min_start = span_min_start(span!());
+                        let max_end = span_max_end(span!());
+                        line_range.contains(&min_start) && line_range.contains(&max_end)
+                    }};
+                }
+
+                macro_rules! full_word_in_line {
+                    () => {{
+                        let min_start = word_min_start(word!());
+                        let max_end = word_max_end(word!());
+                        line_range.contains(&min_start) && line_range.contains(&max_end)
+                    }};
+                }
 
                 macro_rules! check_forward {
                     () => {
@@ -1106,12 +1119,12 @@ impl ShapeLine {
                                 break 'CHECK_FORWARD;
                             }
 
-                            if curr_pos.2 >= word().glyphs.len() {
+                            if curr_pos.2 >= word!().glyphs.len() {
                                 curr_pos.2 = 0;
                                 curr_pos.1 += 1;
                             }
 
-                            if curr_pos.1 >= span().words.len() {
+                            if curr_pos.1 >= span!().words.len() {
                                 curr_pos.1 = 0;
                                 curr_pos.0 += 1;
                             }
@@ -1124,9 +1137,9 @@ impl ShapeLine {
                 }
 
                 macro_rules! add_full_span {
-                    () => {
+                    () => {{
                         let span_idx = curr_pos.0;
-                        let words = &span().words;
+                        let words = &span!().words;
                         if let Some(last_w) = words.last()  {
                             let blanks = words.iter()
                                 .filter(|w| w.blank)
@@ -1137,7 +1150,7 @@ impl ShapeLine {
                             dbg!(span_idx, (0, 0), (words.len(), 0), width, blanks as u32);
                             add_to_visual_line(&mut vl, span_idx, (0, 0), (words.len(), 0), width, blanks as u32);
                         }
-                    };
+                    }};
                 }
 
                 macro_rules! add_full_words {
@@ -1186,46 +1199,46 @@ impl ShapeLine {
                 }
 
                 macro_rules! get_glyphs {
-                    () => {
+                    () => {{
                         let start_glyph = curr_pos.2;
                         let non_inclusive_line_range = *line_range.start()..*line_range.end();
-                        'GLYPHS: while !reached_end && non_inclusive_line_range.contains(&word().glyphs[curr_pos.2].start) {
-                            reached_end = word().glyphs[curr_pos.2].end >= *line_range.end();
+                        'GLYPHS: while !reached_end && non_inclusive_line_range.contains(&glyph!().start) {
+                            reached_end = glyph!().end >= *line_range.end();
                             curr_pos.2 += 1;
-                            if curr_pos.2 >= word().glyphs.len() {
+                            if curr_pos.2 >= word!().glyphs.len() {
                                 break 'GLYPHS;
                             }
                         }
                         add_glyphs!(start_glyph..curr_pos.2);
                         check_forward!();
-                    };
+                    }};
                 }
 
                 macro_rules! get_full_words {
-                    () => {
+                    () => {{
                         let start_word = curr_pos.1;
 
-                        'WORDS: while !reached_end && full_word_in_line() {
-                            reached_end = word_max_end(word()) >= *line_range.end();
+                        'WORDS: while !reached_end && full_word_in_line!() {
+                            reached_end = word_max_end(word!()) >= *line_range.end();
                             curr_pos.1 += 1;
-                            if curr_pos.1 >= span().words.len() {
+                            if curr_pos.1 >= span!().words.len() {
                                 break 'WORDS;
                             }
                         }
 
                         add_full_words!(start_word..curr_pos.1);
                         check_forward!();
-                    };
+                    }};
                 }
 
                 macro_rules! get_full_spans {
-                    () => {
-                        while !reached_end && full_span_in_line() {
+                    () => {{
+                        while !reached_end && full_span_in_line!() {
                             add_full_span!();
                             curr_pos.0 +=1;
                             check_forward!();
                         }
-                    };
+                    }};
                 }
 
                 // if remaining glyphs from prev word
@@ -1233,7 +1246,6 @@ impl ShapeLine {
                 if !reached_end && curr_pos.2 != 0 {
                     get_glyphs!();
                 }
-
 
                 // if remaining words from prev span
                 check_forward!();
@@ -1266,7 +1278,7 @@ impl ShapeLine {
                 }
 
                 assert!(reached_end);
-                visual_lines.push(vl);
+                visual_lines.push(dbg!(vl));
             };
 
             dbg!(&custom_split);
