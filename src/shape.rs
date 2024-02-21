@@ -1200,8 +1200,8 @@ impl ShapeLine {
 
                 macro_rules! get_glyphs {
                     () => {{
-                        let start_glyph = curr_pos.2;
                         let non_inclusive_line_range = *line_range.start()..*line_range.end();
+                        let start_glyph = curr_pos.2;
                         'GLYPHS: while !reached_end && non_inclusive_line_range.contains(&glyph!().start) {
                             reached_end = glyph!().end >= *line_range.end();
                             curr_pos.2 += 1;
@@ -1234,6 +1234,7 @@ impl ShapeLine {
                 macro_rules! get_full_spans {
                     () => {{
                         while !reached_end && full_span_in_line!() {
+                            reached_end = span_max_end(span!()) >= *line_range.end();
                             add_full_span!();
                             curr_pos.0 +=1;
                             check_forward!();
@@ -1241,21 +1242,42 @@ impl ShapeLine {
                     }};
                 }
 
-                // if remaining glyphs from prev word
                 check_forward!();
+
+                // pre-skipped glyphs
+                while !reached_end && curr_pos.2 > 0 && glyph!().start < *line_range.start() {
+                    curr_pos.2 += 1;
+                    check_forward!();
+                }
+
+                // if remaining glyphs from prev word
                 if !reached_end && curr_pos.2 != 0 {
                     get_glyphs!();
                 }
 
-                // if remaining words from prev span
                 check_forward!();
+
+                // pre-skipped words
+                while !reached_end && curr_pos.1 > 0 && word_max_end(word!()) <= *line_range.start() {
+                    curr_pos.1 += 1;
+                    check_forward!();
+                }
+
+                // if remaining words from prev span
                 if !reached_end && curr_pos.1 != 0 {
                     assert_eq!(curr_pos.2, 0);
                     get_full_words!();
                 }
 
-                // full spans
                 check_forward!();
+
+                // pre-skipped spans
+                while !reached_end && span_max_end(span!()) <= *line_range.start() {
+                    curr_pos.1 += 1;
+                    check_forward!();
+                }
+
+                // full spans
                 if !reached_end {
                     assert_eq!(curr_pos.2, 0);
                     assert_eq!(curr_pos.1, 0);
@@ -1277,6 +1299,7 @@ impl ShapeLine {
                     get_glyphs!();
                 }
 
+                check_forward!();
                 assert!(reached_end);
                 visual_lines.push(dbg!(vl));
             };
