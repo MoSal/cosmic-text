@@ -1065,6 +1065,19 @@ impl ShapeLine {
             // (span_idx, word_idx, glyph_idx)
             let mut curr_pos = (0, 0, 0);
 
+            let max_pos = self.spans
+                .iter()
+                .enumerate()
+                .last()
+                .map(|(max_span, last_span)| {
+                    last_span.words
+                        .iter()
+                        .enumerate()
+                        .last()
+                        .map(|(max_word, last_word)| (max_span, max_word, last_word.glyphs.len().max(1) - 1))
+                        .unwrap_or((max_span, 0, 0))
+                }).unwrap_or((0, 0, 0));
+
             let mut mk_and_push_visual_line = |line_range: RangeInclusive<usize>| {
                 dbg!(&line_range);
                 let mut vl = VisualLine::default();
@@ -1087,20 +1100,26 @@ impl ShapeLine {
 
                 macro_rules! check_forward {
                     () => {
-                        if curr_pos.2 >= word().glyphs.len() {
-                            curr_pos.2 = 0;
-                            curr_pos.1 += 1;
-                        }
+                        'CHECK_FORWARD: {
+                            if curr_pos > max_pos {
+                                reached_end = true;
+                                break 'CHECK_FORWARD;
+                            }
 
-                        if curr_pos.1 >= span().words.len() {
-                            curr_pos.1 = 0;
-                            curr_pos.0 += 1;
-                        }
+                            if curr_pos.2 >= word().glyphs.len() {
+                                curr_pos.2 = 0;
+                                curr_pos.1 += 1;
+                            }
 
-                        if curr_pos.0 >= self.spans.len() {
-                            reached_end = true;
-                        }
+                            if curr_pos.1 >= span().words.len() {
+                                curr_pos.1 = 0;
+                                curr_pos.0 += 1;
+                            }
 
+                            if curr_pos.0 >= self.spans.len() {
+                                reached_end = true;
+                            }
+                        }
                     };
                 }
 
