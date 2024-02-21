@@ -1283,16 +1283,13 @@ impl ShapeLine {
 
                 // full spans
                 check_forward!();
-                if !reached_end {
-                    assert_eq!(curr_pos.2, 0);
-                    assert_eq!(curr_pos.1, 0);
+                if !reached_end && curr_pos.2 == 0 && curr_pos.1 == 0 {
                     get_full_spans!();
                 }
 
                 // remaining words
                 check_forward!();
-                if !reached_end {
-                    assert_eq!(curr_pos.2, 0);
+                if !reached_end && curr_pos.2 == 0 {
                     get_full_words!();
                 }
 
