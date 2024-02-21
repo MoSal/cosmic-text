@@ -1244,10 +1244,29 @@ impl ShapeLine {
 
                 check_forward!();
 
-                // pre-skipped glyphs
-                while !reached_end && curr_pos.2 > 0 && glyph!().start < *line_range.start() {
-                    curr_pos.2 += 1;
-                    check_forward!();
+                let has_skip = custom_split.skip_before.is_some() || custom_split.skip_after.is_some();
+
+                if has_skip {
+                    dbg!(curr_pos, max_pos);
+                }
+
+                // pre_skip
+                {
+                    while !reached_end && span_max_end(span!()) <= *line_range.start() {
+                        curr_pos.2 = 0;
+                        curr_pos.1 = 0;
+                        curr_pos.0 += 1;
+                        check_forward!();
+                    }
+                    while !reached_end && word_max_end(word!()) <= *line_range.start() {
+                        curr_pos.2 = 0;
+                        curr_pos.1 += 1;
+                        check_forward!();
+                    }
+                    while !reached_end && glyph!().start < *line_range.start() {
+                        curr_pos.2 += 1;
+                        check_forward!();
+                    }
                 }
 
                 // if remaining glyphs from prev word
@@ -1255,29 +1274,15 @@ impl ShapeLine {
                     get_glyphs!();
                 }
 
-                check_forward!();
-
-                // pre-skipped words
-                while !reached_end && curr_pos.1 > 0 && word_max_end(word!()) <= *line_range.start() {
-                    curr_pos.1 += 1;
-                    check_forward!();
-                }
-
                 // if remaining words from prev span
+                check_forward!();
                 if !reached_end && curr_pos.1 != 0 {
                     assert_eq!(curr_pos.2, 0);
                     get_full_words!();
                 }
 
-                check_forward!();
-
-                // pre-skipped spans
-                while !reached_end && span_max_end(span!()) <= *line_range.start() {
-                    curr_pos.1 += 1;
-                    check_forward!();
-                }
-
                 // full spans
+                check_forward!();
                 if !reached_end {
                     assert_eq!(curr_pos.2, 0);
                     assert_eq!(curr_pos.1, 0);
@@ -1288,14 +1293,12 @@ impl ShapeLine {
                 check_forward!();
                 if !reached_end {
                     assert_eq!(curr_pos.2, 0);
-                    assert_eq!(curr_pos.1, 0);
                     get_full_words!();
                 }
 
                 // remaining glyphs
                 check_forward!();
                 if !reached_end {
-                    assert_eq!(curr_pos.2, 0);
                     get_glyphs!();
                 }
 
