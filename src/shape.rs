@@ -1141,6 +1141,7 @@ impl ShapeLine {
                     () => {{
                         let min_start = span_min_start(span!());
                         let max_end = span_max_end(span!());
+                        dbg!("span", min_start, max_end);
                         line_range.contains(&min_start) && line_range.contains(&max_end)
                     }};
                 }
@@ -1149,6 +1150,7 @@ impl ShapeLine {
                     () => {{
                         let min_start = word_min_start(word!());
                         let max_end = word_max_end(word!());
+                        dbg!("word", min_start, max_end);
                         line_range.contains(&min_start) && line_range.contains(&max_end)
                     }};
                 }
@@ -1172,15 +1174,16 @@ impl ShapeLine {
 
                 macro_rules! check_forward {
                     () => {
-                        if congruent_span!() {
-                            check_forward!(congruent)
-                        } else {
-                            check_forward!(incongruent)
+                        if !reached_end {
+                            if congruent_span!() {
+                                check_forward!(congruent)
+                            } else {
+                                check_forward!(incongruent)
+                            }
                         }
                     };
                     (congruent) => {
                         'CHECK_FORWARD: {
-                            dbg!(curr_pos, max_pos);
                             if curr_pos > max_pos {
                                 reached_end = true;
                                 break 'CHECK_FORWARD;
@@ -1202,7 +1205,6 @@ impl ShapeLine {
                     };
                     (incongruent) => {
                         'CHECK_FORWARD: {
-                            dbg!(curr_pos, max_pos);
                             if curr_pos.0 > max_pos.0 {
                                 reached_end = true;
                                 break 'CHECK_FORWARD;
