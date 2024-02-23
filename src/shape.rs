@@ -1195,6 +1195,7 @@ impl ShapeLine {
                             }
 
                             if curr_pos.1 >= span!().words.len() {
+                                curr_pos.1 = 0;
                                 forward_span!();
                             }
 
@@ -1215,6 +1216,7 @@ impl ShapeLine {
                                     reached_end = true;
                                     break 'CHECK_FORWARD;
                                 }
+                                curr_pos.1 = 0;
                                 forward_span!();
                             }
 
