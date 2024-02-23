@@ -1063,7 +1063,11 @@ impl ShapeLine {
             //let mut curr_pos = (0, 0, 0);
 
             // (span_idx, word_idx, glyph_idx)
-            let mut curr_pos = (0, 0, 0);
+            let mut curr_pos = if self.rtl == self.spans.first().map(|span| span.level.is_rtl()).unwrap_or(self.rtl) {
+                (0, 0, 0)
+            } else {
+                (0, self.spans[0].words.len(), self.spans[0].words.last().map(|w| w.glyphs.len()).unwrap_or(0))
+            };
 
             let max_pos = self.spans
                 .iter()
@@ -1095,6 +1099,44 @@ impl ShapeLine {
                     () => { &word!().glyphs[curr_pos.2] };
                 }
 
+                macro_rules! last_span_idx {
+                    () => { self.spans.len() - 1 };
+                }
+
+                macro_rules! curr_span_last_word_idx {
+                    () => { span!().words.len() - 1 };
+                }
+
+                macro_rules! curr_word_last_glyph_idx {
+                    () => { word!().glyphs.len() - 1 };
+                }
+
+                macro_rules! span_start_pos {
+                    () => {{
+                        // Don't invoke on non-`check_forward!()`ed curr_pos
+                        assert!(curr_pos <= max_pos);
+                        if congruent_span!() {
+                            (curr_pos.0, 0, 0)
+                        } else {
+                            let last_w_idx = curr_span_last_word_idx!();
+                            let last_g_idx = span!().words[last_w_idx].glyphs.len() - 1;
+                            (curr_pos.0, last_w_idx, last_g_idx)
+                        }
+                    }};
+                }
+
+                macro_rules! word_start_pos {
+                    () => {{
+                        // Don't invoke on non-`check_forward!()`ed curr_pos
+                        assert!(curr_pos <= max_pos);
+                        if congruent_span!() {
+                            (curr_pos.0, curr_pos.1, 0)
+                        } else {
+                            (curr_pos.0, curr_pos.1, curr_word_last_glyph_idx!())
+                        }
+                    }};
+                }
+
                 macro_rules! full_span_in_line {
                     () => {{
                         let min_start = span_min_start(span!());
@@ -1111,9 +1153,34 @@ impl ShapeLine {
                     }};
                 }
 
+                macro_rules! congruent_span {
+                    () => {
+                        self.rtl == span!().level.is_rtl()
+                    };
+                }
+
+                macro_rules! forward_span {
+                    () => {
+                        curr_pos.0 += 1;
+                        if curr_pos.0 > max_pos.0 {
+                            reached_end = true;
+                        } else {
+                            curr_pos = span_start_pos!();
+                        }
+                    };
+                }
+
                 macro_rules! check_forward {
                     () => {
+                        if congruent_span!() {
+                            check_forward!(congruent)
+                        } else {
+                            check_forward!(incongruent)
+                        }
+                    };
+                    (congruent) => {
                         'CHECK_FORWARD: {
+                            dbg!(curr_pos, max_pos);
                             if curr_pos > max_pos {
                                 reached_end = true;
                                 break 'CHECK_FORWARD;
@@ -1125,12 +1192,40 @@ impl ShapeLine {
                             }
 
                             if curr_pos.1 >= span!().words.len() {
-                                curr_pos.1 = 0;
-                                curr_pos.0 += 1;
+                                forward_span!();
                             }
 
                             if curr_pos.0 >= self.spans.len() {
                                 reached_end = true;
+                            }
+                        }
+                    };
+                    (incongruent) => {
+                        'CHECK_FORWARD: {
+                            dbg!(curr_pos, max_pos);
+                            if curr_pos.0 > max_pos.0 {
+                                reached_end = true;
+                                break 'CHECK_FORWARD;
+                            }
+
+                            if !reached_end && curr_pos.1 == usize::MAX {
+                                if curr_pos.0 == max_pos.0 {
+                                    reached_end = true;
+                                    break 'CHECK_FORWARD;
+                                }
+                                forward_span!();
+                            }
+
+                            if !reached_end && curr_pos.2 == usize::MAX {
+                                if curr_pos.1 == 0 && curr_pos.0 == max_pos.0 {
+                                    reached_end = true;
+                                    break 'CHECK_FORWARD;
+                                } else if curr_pos.1 == 0 {
+                                    forward_span!();
+                                } else {
+                                    curr_pos.1 -=1;
+                                    curr_pos = word_start_pos!();
+                                }
                             }
                         }
                     };
@@ -1186,7 +1281,7 @@ impl ShapeLine {
 
                             let span_idx = curr_pos.0;
                             let word_idx = curr_pos.1;
-                            let glyphs_slice = &self.spans[span_idx].words[word_idx].glyphs[$g_range];
+                            let glyphs_slice = &word!().glyphs[$g_range];
                             if let Some(last_g) = glyphs_slice.last() {
                                 let width = glyphs_slice
                                     .iter()
@@ -1200,22 +1295,49 @@ impl ShapeLine {
 
                 macro_rules! get_glyphs {
                     () => {{
+                        if congruent_span!() {
+                            get_glyphs!(congruent);
+                        } else {
+                            get_glyphs!(incongruent);
+                        }
+                        check_forward!();
+                    }};
+                    (congruent) => {{
                         let non_inclusive_line_range = *line_range.start()..*line_range.end();
                         let start_glyph = curr_pos.2;
                         'GLYPHS: while !reached_end && non_inclusive_line_range.contains(&glyph!().start) {
                             reached_end = glyph!().end >= *line_range.end();
                             curr_pos.2 += 1;
-                            if curr_pos.2 >= word!().glyphs.len() {
+                            if curr_pos.2 == word!().glyphs.len() {
                                 break 'GLYPHS;
                             }
                         }
                         add_glyphs!(start_glyph..curr_pos.2);
-                        check_forward!();
+                    }};
+                    (incongruent) => {{
+                        let non_inclusive_line_range = *line_range.start()..*line_range.end();
+                        let start_glyph = curr_pos.2;
+                        'GLYPHS: while !reached_end && non_inclusive_line_range.contains(&glyph!().start) {
+                            reached_end = glyph!().end >= *line_range.end();
+                            curr_pos.2 -= 1;
+                            if curr_pos.2 == usize::MAX {
+                                break 'GLYPHS;
+                            }
+                        }
+                        add_glyphs!({curr_pos.2+1}..{start_glyph+1});
                     }};
                 }
 
                 macro_rules! get_full_words {
                     () => {{
+                        if congruent_span!() {
+                            get_full_words!(congruent);
+                        } else {
+                            get_full_words!(incongruent);
+                        }
+                        check_forward!();
+                    }};
+                    (congruent) => {{
                         let start_word = curr_pos.1;
 
                         'WORDS: while !reached_end && full_word_in_line!() {
@@ -1229,6 +1351,21 @@ impl ShapeLine {
                         add_full_words!(start_word..curr_pos.1);
                         check_forward!();
                     }};
+                    (incongruent) => {{
+                        let start_word = curr_pos.1;
+
+                        'WORDS: while !reached_end && full_word_in_line!() {
+                            reached_end = word_max_end(word!()) >= *line_range.end();
+                            curr_pos.1 -= 1;
+                            if curr_pos.1 == usize::MAX {
+                                break 'WORDS;
+                            }
+                            curr_pos.2 = word!().glyphs.len() - 1;
+                        }
+
+                        add_full_words!({curr_pos.1+1}..{start_word+1});
+                        check_forward!();
+                    }};
                 }
 
                 macro_rules! get_full_spans {
@@ -1236,8 +1373,7 @@ impl ShapeLine {
                         while !reached_end && full_span_in_line!() {
                             reached_end = span_max_end(span!()) >= *line_range.end();
                             add_full_span!();
-                            curr_pos.0 +=1;
-                            check_forward!();
+                            forward_span!();
                         }
                     }};
                 }
@@ -1246,50 +1382,66 @@ impl ShapeLine {
 
                 let has_skip = custom_split.skip_before.is_some() || custom_split.skip_after.is_some();
 
-                if has_skip {
+                if has_skip || congruent_span!() {
                     dbg!(curr_pos, max_pos);
                 }
 
                 // pre_skip
-                {
+                if custom_split.skip_before.is_some() {
                     while !reached_end && span_max_end(span!()) <= *line_range.start() {
-                        curr_pos.2 = 0;
-                        curr_pos.1 = 0;
-                        curr_pos.0 += 1;
-                        check_forward!();
+                        forward_span!();
                     }
-                    while !reached_end && word_max_end(word!()) <= *line_range.start() {
-                        curr_pos.2 = 0;
-                        curr_pos.1 += 1;
+                    while !reached_end && dbg!(word_max_end(word!())) <= dbg!(*line_range.start()) {
+                        if congruent_span!() {
+                            curr_pos.1 += 1;
+                        } else {
+                            curr_pos.1 -= 1;
+                        }
                         check_forward!();
+                        dbg!(curr_pos);
+                        if !reached_end {
+                            curr_pos = word_start_pos!();
+                        }
+                        dbg!(curr_pos);
                     }
-                    while !reached_end && glyph!().start < *line_range.start() {
-                        curr_pos.2 += 1;
+                    dbg!(curr_pos);
+                    while !reached_end && dbg!(glyph!().start) < dbg!(*line_range.start()) {
+                        if congruent_span!() {
+                            curr_pos.2 += 1;
+                        } else {
+                            curr_pos.2 -= 1;
+                        }
                         check_forward!();
                     }
                 }
 
+                if has_skip || congruent_span!() {
+                    dbg!(curr_pos, max_pos);
+                }
+
                 // if remaining glyphs from prev word
-                if !reached_end && curr_pos.2 != 0 {
+                if !reached_end && curr_pos != word_start_pos!() {
                     get_glyphs!();
                 }
 
                 // if remaining words from prev span
                 check_forward!();
-                if !reached_end && curr_pos.1 != 0 {
-                    assert_eq!(curr_pos.2, 0);
+                if !reached_end && curr_pos != span_start_pos!() {
+                    assert_eq!(curr_pos, word_start_pos!());
                     get_full_words!();
                 }
 
                 // full spans
                 check_forward!();
-                if !reached_end && curr_pos.2 == 0 && curr_pos.1 == 0 {
+                if !reached_end && curr_pos == span_start_pos!() {
+                    dbg!(curr_pos, &vl);
                     get_full_spans!();
+                    dbg!(curr_pos, &vl);
                 }
 
                 // remaining words
                 check_forward!();
-                if !reached_end && curr_pos.2 == 0 {
+                if !reached_end && curr_pos == word_start_pos!() {
                     get_full_words!();
                 }
 
