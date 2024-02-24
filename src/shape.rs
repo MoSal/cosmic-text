@@ -1176,40 +1176,49 @@ impl ShapeLine {
                     () => {
                         if !reached_end {
                             if congruent_span!() {
+                                dbg!("here cong.");
                                 check_forward!(congruent)
                             } else {
+                                dbg!("here incong.");
                                 check_forward!(incongruent)
                             }
                         }
                     };
                     (congruent) => {
                         'CHECK_FORWARD: {
+                            dbg!("here 1c", curr_pos);
                             if curr_pos > max_pos {
                                 reached_end = true;
                                 break 'CHECK_FORWARD;
                             }
+                            dbg!("here 2c", curr_pos);
 
-                            if curr_pos.2 >= word!().glyphs.len() {
+                            if curr_pos.1 < span!().words.len() && curr_pos.2 >= word!().glyphs.len() {
                                 curr_pos.2 = 0;
                                 curr_pos.1 += 1;
                             }
+                            dbg!("here 3c", curr_pos);
 
                             if curr_pos.1 >= span!().words.len() {
                                 curr_pos.1 = 0;
                                 forward_span!();
                             }
+                            dbg!("here 4c");
 
                             if curr_pos.0 >= self.spans.len() {
                                 reached_end = true;
                             }
+                            dbg!("here 5c");
                         }
                     };
                     (incongruent) => {
                         'CHECK_FORWARD: {
+                            dbg!("here 1");
                             if curr_pos.0 > max_pos.0 {
                                 reached_end = true;
                                 break 'CHECK_FORWARD;
                             }
+                            dbg!("here 2");
 
                             if !reached_end && curr_pos.1 == usize::MAX {
                                 if curr_pos.0 == max_pos.0 {
@@ -1219,6 +1228,8 @@ impl ShapeLine {
                                 curr_pos.1 = 0;
                                 forward_span!();
                             }
+
+                            dbg!("here 3");
 
                             if !reached_end && curr_pos.2 == usize::MAX {
                                 if curr_pos.1 == 0 && curr_pos.0 == max_pos.0 {
@@ -1231,6 +1242,8 @@ impl ShapeLine {
                                     curr_pos = word_start_pos!();
                                 }
                             }
+
+                            dbg!("here 4");
                         }
                     };
                 }
@@ -1382,13 +1395,10 @@ impl ShapeLine {
                     }};
                 }
 
+                dbg!(curr_pos, max_pos);
                 check_forward!();
 
                 let has_skip = custom_split.skip_before.is_some() || custom_split.skip_after.is_some();
-
-                if has_skip || congruent_span!() {
-                    dbg!(curr_pos, max_pos);
-                }
 
                 // pre_skip
                 if custom_split.skip_before.is_some() {
@@ -1419,7 +1429,7 @@ impl ShapeLine {
                     }
                 }
 
-                if has_skip || congruent_span!() {
+                if has_skip || !congruent_span!() {
                     dbg!(curr_pos, max_pos);
                 }
 
