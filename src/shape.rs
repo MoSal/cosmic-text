@@ -1139,6 +1139,9 @@ impl ShapeLine {
                         if curr_pos.0 > max_pos.0 {
                             reached_end = true;
                         } else {
+                            // avoid triggering assert in span_start_pos!() if incongruent
+                            curr_pos.2 = 0;
+                            curr_pos.1 = 0;
                             curr_pos = span_start_pos!();
                         }
                     };
@@ -1167,7 +1170,6 @@ impl ShapeLine {
                             }
 
                             if curr_pos.1 >= span!().words.len() {
-                                curr_pos.1 = 0;
                                 forward_span!();
                             }
 
@@ -1188,7 +1190,6 @@ impl ShapeLine {
                                     reached_end = true;
                                     break 'CHECK_FORWARD;
                                 }
-                                curr_pos.1 = 0;
                                 forward_span!();
                             }
 
