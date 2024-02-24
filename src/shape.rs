@@ -1077,10 +1077,6 @@ impl ShapeLine {
                     () => { &word!().glyphs[curr_pos.2] };
                 }
 
-                macro_rules! last_span_idx {
-                    () => { self.spans.len() - 1 };
-                }
-
                 macro_rules! curr_span_last_word_idx {
                     () => { span!().words.len() - 1 };
                 }
