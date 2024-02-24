@@ -6,7 +6,6 @@
 use alloc::vec::Vec;
 use core::cmp::{max, min};
 use core::fmt;
-use core::iter::Rev;
 use core::mem;
 use core::ops::{Range, RangeInclusive};
 use unicode_script::{Script, UnicodeScript};
@@ -1024,23 +1023,7 @@ impl ShapeLine {
         // let mut current_visual_line: Vec<VlRange> = Vec::with_capacity(1);
         let mut current_visual_line = VisualLine::default();
 
-        if let Some(mut custom_split) = custom_split {
-            enum ForwardReverseIter<T, I: Iterator<Item=T> + DoubleEndedIterator> {
-                Forward(I),
-                Reverse(Rev<I>),
-            }
-
-            impl<T, I: Iterator<Item=T> + DoubleEndedIterator> Iterator for ForwardReverseIter<T, I> {
-                type Item = T;
-
-                fn next(&mut self) -> Option<Self::Item> {
-                    match self {
-                        Self::Forward(iter) => iter.next(),
-                        Self::Reverse(iter) => iter.next(),
-                    }
-                }
-            }
-
+        if let Some(custom_split) = custom_split {
             let word_min_start = |word: &ShapeWord| {
                 word.glyphs.iter().map(|g| g.start).min().unwrap_or_default()
             };
@@ -1058,9 +1041,6 @@ impl ShapeLine {
 
             let skip_before = custom_split.skip_before.unwrap_or_default();
             let skip_after = custom_split.skip_after.unwrap_or(usize::MAX);
-
-            // (span_idx, word_idx, glyph_idx)
-            //let mut curr_pos = (0, 0, 0);
 
             // (span_idx, word_idx, glyph_idx)
             let mut curr_pos = if self.rtl == self.spans.first().map(|span| span.level.is_rtl()).unwrap_or(self.rtl) {
