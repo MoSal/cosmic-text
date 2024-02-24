@@ -1416,7 +1416,7 @@ impl ShapeLine {
 
                 check_forward!();
                 assert!(reached_end);
-                //visual_lines.push(dbg!(vl));
+                visual_lines.push(dbg!(vl));
             };
 
             //dbg!(&custom_split);
