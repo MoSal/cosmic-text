@@ -1083,7 +1083,7 @@ impl ShapeLine {
                 }).unwrap_or((0, 0, 0));
 
             let mut mk_and_push_visual_line = |line_range: RangeInclusive<usize>| {
-                dbg!(&line_range);
+                //dbg!(&line_range);
                 let mut vl = VisualLine::default();
                 let mut reached_end = false;
 
@@ -1141,7 +1141,6 @@ impl ShapeLine {
                     () => {{
                         let min_start = span_min_start(span!());
                         let max_end = span_max_end(span!());
-                        dbg!("span", min_start, max_end);
                         line_range.contains(&min_start) && line_range.contains(&max_end)
                     }};
                 }
@@ -1150,7 +1149,6 @@ impl ShapeLine {
                     () => {{
                         let min_start = word_min_start(word!());
                         let max_end = word_max_end(word!());
-                        dbg!("word", min_start, max_end);
                         line_range.contains(&min_start) && line_range.contains(&max_end)
                     }};
                 }
@@ -1176,49 +1174,40 @@ impl ShapeLine {
                     () => {
                         if !reached_end {
                             if congruent_span!() {
-                                dbg!("here cong.");
                                 check_forward!(congruent)
                             } else {
-                                dbg!("here incong.");
                                 check_forward!(incongruent)
                             }
                         }
                     };
                     (congruent) => {
                         'CHECK_FORWARD: {
-                            dbg!("here 1c", curr_pos);
                             if curr_pos > max_pos {
                                 reached_end = true;
                                 break 'CHECK_FORWARD;
                             }
-                            dbg!("here 2c", curr_pos);
 
                             if curr_pos.1 < span!().words.len() && curr_pos.2 >= word!().glyphs.len() {
                                 curr_pos.2 = 0;
                                 curr_pos.1 += 1;
                             }
-                            dbg!("here 3c", curr_pos);
 
                             if curr_pos.1 >= span!().words.len() {
                                 curr_pos.1 = 0;
                                 forward_span!();
                             }
-                            dbg!("here 4c");
 
                             if curr_pos.0 >= self.spans.len() {
                                 reached_end = true;
                             }
-                            dbg!("here 5c");
                         }
                     };
                     (incongruent) => {
                         'CHECK_FORWARD: {
-                            dbg!("here 1");
                             if curr_pos.0 > max_pos.0 {
                                 reached_end = true;
                                 break 'CHECK_FORWARD;
                             }
-                            dbg!("here 2");
 
                             if !reached_end && curr_pos.1 == usize::MAX {
                                 if curr_pos.0 == max_pos.0 {
@@ -1228,8 +1217,6 @@ impl ShapeLine {
                                 curr_pos.1 = 0;
                                 forward_span!();
                             }
-
-                            dbg!("here 3");
 
                             if !reached_end && curr_pos.2 == usize::MAX {
                                 if curr_pos.1 == 0 && curr_pos.0 == max_pos.0 {
@@ -1242,8 +1229,6 @@ impl ShapeLine {
                                     curr_pos = word_start_pos!();
                                 }
                             }
-
-                            dbg!("here 4");
                         }
                     };
                 }
@@ -1259,7 +1244,7 @@ impl ShapeLine {
                             let width = words.iter()
                                 .fold(0.0f32, |acc, w| acc + font_size * w.x_advance);
 
-                            dbg!(span_idx, (0, 0), (words.len(), 0), width, blanks as u32);
+                            //dbg!(span_idx, (0, 0), (words.len(), 0), width, blanks as u32);
                             add_to_visual_line(&mut vl, span_idx, (0, 0), (words.len(), 0), width, blanks as u32);
                         }
                     }};
@@ -1282,7 +1267,7 @@ impl ShapeLine {
                                 let width = words_slice
                                     .iter()
                                     .fold(0.0f32, |acc, w| acc + font_size * w.x_advance);
-                                dbg!(span_idx, ($w_range.start, 0), ($w_range.end, 0), width, blanks as u32);
+                                //dbg!(span_idx, ($w_range.start, 0), ($w_range.end, 0), width, blanks as u32);
                                 add_to_visual_line(&mut vl, span_idx, ($w_range.start, 0), ($w_range.end, 0), width, blanks as u32);
                             }
                         }
@@ -1303,7 +1288,7 @@ impl ShapeLine {
                                 let width = glyphs_slice
                                     .iter()
                                     .fold(0.0f32, |acc, g| acc + font_size * g.x_advance);
-                                dbg!(span_idx, (word_idx, $g_range.start), (word_idx, $g_range.end), width, 0);
+                                //dbg!(span_idx, (word_idx, $g_range.start), (word_idx, $g_range.end), width, 0);
                                 add_to_visual_line(&mut vl, span_idx, (word_idx, $g_range.start), (word_idx, $g_range.end), width, 0);
                             }
                         }
@@ -1395,31 +1380,28 @@ impl ShapeLine {
                     }};
                 }
 
-                dbg!(curr_pos, max_pos);
+                //dbg!(curr_pos, max_pos);
                 check_forward!();
-
-                let has_skip = custom_split.skip_before.is_some() || custom_split.skip_after.is_some();
 
                 // pre_skip
                 if custom_split.skip_before.is_some() {
                     while !reached_end && span_max_end(span!()) <= *line_range.start() {
                         forward_span!();
                     }
-                    while !reached_end && dbg!(word_max_end(word!())) <= dbg!(*line_range.start()) {
+
+                    while !reached_end && word_max_end(word!()) <= *line_range.start() {
                         if congruent_span!() {
                             curr_pos.1 += 1;
                         } else {
                             curr_pos.1 -= 1;
                         }
                         check_forward!();
-                        dbg!(curr_pos);
                         if !reached_end {
                             curr_pos = word_start_pos!();
                         }
-                        dbg!(curr_pos);
                     }
-                    dbg!(curr_pos);
-                    while !reached_end && dbg!(glyph!().start) < dbg!(*line_range.start()) {
+
+                    while !reached_end && glyph!().start < *line_range.start() {
                         if congruent_span!() {
                             curr_pos.2 += 1;
                         } else {
@@ -1427,10 +1409,6 @@ impl ShapeLine {
                         }
                         check_forward!();
                     }
-                }
-
-                if has_skip || !congruent_span!() {
-                    dbg!(curr_pos, max_pos);
                 }
 
                 // if remaining glyphs from prev word
@@ -1448,9 +1426,7 @@ impl ShapeLine {
                 // full spans
                 check_forward!();
                 if !reached_end && curr_pos == span_start_pos!() {
-                    dbg!(curr_pos, &vl);
                     get_full_spans!();
-                    dbg!(curr_pos, &vl);
                 }
 
                 // remaining words
@@ -1467,10 +1443,10 @@ impl ShapeLine {
 
                 check_forward!();
                 assert!(reached_end);
-                visual_lines.push(dbg!(vl));
+                //visual_lines.push(dbg!(vl));
             };
 
-            dbg!(&custom_split);
+            //dbg!(&custom_split);
             for line_idx in 0..=custom_split.new_lines_at.len() {
                 let line_range_start = if line_idx == 0 { skip_before } else { custom_split.new_lines_at[line_idx-1] };
                 let line_range_end = custom_split.new_lines_at.get(line_idx).copied().unwrap_or(skip_after);
