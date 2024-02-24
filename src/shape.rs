@@ -1037,8 +1037,6 @@ impl ShapeLine {
                 span.words.iter().map(word_max_end).max().unwrap_or_default()
             };
 
-            let has_ctx = custom_split.skip_after.is_some();
-
             let skip_before = custom_split.skip_before.unwrap_or_default();
             let skip_after = custom_split.skip_after.unwrap_or(usize::MAX);
 
@@ -1217,16 +1215,15 @@ impl ShapeLine {
                     () => {{
                         let span_idx = curr_pos.0;
                         let words = &span!().words;
-                        if let Some(last_w) = words.last()  {
-                            let blanks = words.iter()
-                                .filter(|w| w.blank)
-                                .count();
-                            let width = words.iter()
-                                .fold(0.0f32, |acc, w| acc + font_size * w.x_advance);
 
-                            //dbg!(span_idx, (0, 0), (words.len(), 0), width, blanks as u32);
-                            add_to_visual_line(&mut vl, span_idx, (0, 0), (words.len(), 0), width, blanks as u32);
-                        }
+                        let blanks = words.iter()
+                            .filter(|w| w.blank)
+                            .count();
+                        let width = words.iter()
+                            .fold(0.0f32, |acc, w| acc + font_size * w.x_advance);
+
+                        //dbg!(span_idx, (0, 0), (words.len(), 0), width, blanks as u32);
+                        add_to_visual_line(&mut vl, span_idx, (0, 0), (words.len(), 0), width, blanks as u32);
                     }};
                 }
 
@@ -1239,17 +1236,17 @@ impl ShapeLine {
 
                             let span_idx = curr_pos.0;
                             let words_slice = &self.spans[span_idx].words[$w_range];
-                            if let Some(last_w) = words_slice.last() {
-                                let blanks = words_slice
-                                    .iter()
-                                    .filter(|w| w.blank)
-                                    .count();
-                                let width = words_slice
-                                    .iter()
-                                    .fold(0.0f32, |acc, w| acc + font_size * w.x_advance);
-                                //dbg!(span_idx, ($w_range.start, 0), ($w_range.end, 0), width, blanks as u32);
-                                add_to_visual_line(&mut vl, span_idx, ($w_range.start, 0), ($w_range.end, 0), width, blanks as u32);
-                            }
+
+                            let blanks = words_slice
+                                .iter()
+                                .filter(|w| w.blank)
+                                .count();
+                            let width = words_slice
+                                .iter()
+                                .fold(0.0f32, |acc, w| acc + font_size * w.x_advance);
+
+                            //dbg!(span_idx, ($w_range.start, 0), ($w_range.end, 0), width, blanks as u32);
+                            add_to_visual_line(&mut vl, span_idx, ($w_range.start, 0), ($w_range.end, 0), width, blanks as u32);
                         }
                     };
                 }
@@ -1264,13 +1261,13 @@ impl ShapeLine {
                             let span_idx = curr_pos.0;
                             let word_idx = curr_pos.1;
                             let glyphs_slice = &word!().glyphs[$g_range];
-                            if let Some(last_g) = glyphs_slice.last() {
-                                let width = glyphs_slice
-                                    .iter()
-                                    .fold(0.0f32, |acc, g| acc + font_size * g.x_advance);
-                                //dbg!(span_idx, (word_idx, $g_range.start), (word_idx, $g_range.end), width, 0);
-                                add_to_visual_line(&mut vl, span_idx, (word_idx, $g_range.start), (word_idx, $g_range.end), width, 0);
-                            }
+
+                            let width = glyphs_slice
+                                .iter()
+                                .fold(0.0f32, |acc, g| acc + font_size * g.x_advance);
+
+                            //dbg!(span_idx, (word_idx, $g_range.start), (word_idx, $g_range.end), width, 0);
+                            add_to_visual_line(&mut vl, span_idx, (word_idx, $g_range.start), (word_idx, $g_range.end), width, 0);
                         }
                     };
                 }
