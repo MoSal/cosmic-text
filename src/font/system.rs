@@ -32,21 +32,25 @@ impl FontCachedCodepointSupportInfo {
         }
     }
 
+    fn unknown_has_codepoint(&mut self, font_codepoints: &[u32], codepoint: u32) -> bool {
+        let ret = font_codepoints.contains(&codepoint);
+        if ret {
+            self.supported.insert(0, codepoint);
+            self.supported.truncate(Self::SUPPORTED_MAX_SZ);
+        } else {
+            self.not_supported.insert(0, codepoint);
+            self.not_supported.truncate(Self::NOT_SUPPORTED_MAX_SZ);
+        }
+        ret
+    }
+
     fn has_codepoint(&mut self, font_codepoints: &[u32], codepoint: u32) -> bool {
         if self.supported.contains(&codepoint) {
             true
         } else if self.not_supported.contains(&codepoint) {
             false
         } else {
-            let ret = font_codepoints.contains(&codepoint);
-            if ret {
-                self.supported.insert(0, codepoint);
-                self.supported.truncate(Self::SUPPORTED_MAX_SZ);
-            } else {
-                self.not_supported.insert(0, codepoint);
-                self.not_supported.truncate(Self::NOT_SUPPORTED_MAX_SZ);
-            }
-            ret
+            self.unknown_has_codepoint(font_codepoints, codepoint)
         }
     }
 }
