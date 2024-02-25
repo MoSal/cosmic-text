@@ -1277,12 +1277,12 @@ impl ShapeLine {
                             get_glyphs!(incongruent);
                         }
                         check_forward!();
+                        reached_end = reached_end || glyph!().start >= *line_range.end();
                     }};
                     (congruent) => {{
                         let non_inclusive_line_range = *line_range.start()..*line_range.end();
                         let start_glyph = curr_pos.2;
-                        'GLYPHS: while !reached_end && non_inclusive_line_range.contains(&glyph!().start) {
-                            reached_end = glyph!().end >= *line_range.end();
+                        'GLYPHS: while non_inclusive_line_range.contains(&glyph!().start) {
                             curr_pos.2 += 1;
                             if curr_pos.2 == word!().glyphs.len() {
                                 break 'GLYPHS;
@@ -1293,8 +1293,7 @@ impl ShapeLine {
                     (incongruent) => {{
                         let non_inclusive_line_range = *line_range.start()..*line_range.end();
                         let start_glyph = curr_pos.2;
-                        'GLYPHS: while !reached_end && non_inclusive_line_range.contains(&glyph!().start) {
-                            reached_end = glyph!().end >= *line_range.end();
+                        'GLYPHS: while non_inclusive_line_range.contains(&glyph!().start) {
                             curr_pos.2 -= 1;
                             if curr_pos.2 == usize::MAX {
                                 break 'GLYPHS;
@@ -1392,8 +1391,7 @@ impl ShapeLine {
 
                 // if remaining words from prev span
                 check_forward!();
-                if !reached_end && curr_pos != span_start_pos!() {
-                    assert_eq!(curr_pos, word_start_pos!());
+                if !reached_end && curr_pos != span_start_pos!() && curr_pos == word_start_pos!() {
                     get_full_words!();
                 }
 
