@@ -155,7 +155,11 @@ impl<'a> Iterator for FontFallbackIter<'a> {
                     .font_system
                     .db()
                     .family_name(self.default_families[self.default_i - 1]);
-                if self.face_contains_family(m_key.id, default_family) {
+
+                let has_default_mono = self.monospace_fallbacks.iter()
+                    .any(|fi| fi.font_weight_diff.is_none());
+
+                if !(is_mono && has_default_mono) && self.face_contains_family(m_key.id, default_family) {
                     if let Some(font) = self.font_system.get_font(m_key.id) {
                         if !is_mono {
                             return Some(font);
