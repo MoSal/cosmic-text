@@ -66,6 +66,9 @@ pub struct FontSystem {
     /// Cache for loaded fonts from the database.
     font_cache: HashMap<fontdb::ID, Option<Arc<Font>>>,
 
+    /// Sorted ID's of all Monospace fonts in DB
+    monospace_fonts_ids: Vec<fontdb::ID>,
+
     /// Cache for font codepoint support info
     font_codepoint_support_info_cache: HashMap<fontdb::ID, FontCachedCodepointSupportInfo>,
 
@@ -121,9 +124,16 @@ impl FontSystem {
 
     /// Create a new [`FontSystem`] with a pre-specified locale and font database.
     pub fn new_with_locale_and_db(locale: String, db: fontdb::Database) -> Self {
+        let mut monospace_fonts_ids = db.faces()
+            .filter(|face_info| face_info.monospaced && !face_info.post_script_name.contains("Emoji"))
+            .map(|face_info| face_info.id)
+            .collect::<Vec<_>>();
+        monospace_fonts_ids.sort();
+
         Self {
             locale,
             db,
+            monospace_fonts_ids,
             font_cache: Default::default(),
             font_matches_cache: Default::default(),
             font_codepoint_support_info_cache: Default::default(),
@@ -180,6 +190,10 @@ impl FontSystem {
                 }
             })
             .clone()
+    }
+
+    pub fn is_monospace(&self, id: fontdb::ID) -> bool {
+        self.monospace_fonts_ids.binary_search(&id).is_ok()
     }
 
     pub fn get_font_supported_codepoints_in_word(&mut self, id: fontdb::ID, word: &str) -> Option<usize> {
