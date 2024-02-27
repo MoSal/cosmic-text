@@ -88,8 +88,13 @@ pub struct FontSystem {
     /// Cache for loaded fonts from the database.
     font_cache: HashMap<fontdb::ID, Option<Arc<Font>>>,
 
-    /// Sorted ID's of all Monospace fonts in DB
-    monospace_fonts_ids: Vec<fontdb::ID>,
+    /// Sorted unique ID's of all Monospace fonts in DB
+    monospace_font_ids: Vec<fontdb::ID>,
+
+    /// Sorted unique ID's of all Monospace fonts in DB per script.
+    /// A font may support multiple scripts of course, so the same ID
+    /// may appear in multiple map value vecs.
+    per_script_monospace_font_ids: HashMap<[u8; 4], Vec<fontdb::ID>>,
 
     /// Cache for font codepoint support info
     font_codepoint_support_info_cache: HashMap<fontdb::ID, FontCachedCodepointSupportInfo>,
@@ -146,23 +151,42 @@ impl FontSystem {
 
     /// Create a new [`FontSystem`] with a pre-specified locale and font database.
     pub fn new_with_locale_and_db(locale: String, db: fontdb::Database) -> Self {
-        let mut monospace_fonts_ids = db.faces()
+        let mut monospace_font_ids = db.faces()
             .filter(|face_info| face_info.monospaced && !face_info.post_script_name.contains("Emoji"))
             .map(|face_info| face_info.id)
             .collect::<Vec<_>>();
-        monospace_fonts_ids.sort();
+        monospace_font_ids.sort();
 
-        Self {
+        let cloned_monospace_font_ids = monospace_font_ids.clone();
+
+        let mut ret = Self {
             locale,
             db,
-            monospace_fonts_ids,
+            monospace_font_ids,
+            per_script_monospace_font_ids: Default::default(),
             font_cache: Default::default(),
             font_matches_cache: Default::default(),
             font_codepoint_support_info_cache: Default::default(),
             shape_plan_cache: ShapePlanCache::default(),
             #[cfg(feature = "shape-run-cache")]
             shape_run_cache: crate::ShapeRunCache::default(),
-        }
+        };
+
+        cloned_monospace_font_ids
+            .into_iter()
+            .for_each(|id| if let Some(font) = ret.get_font(id) {
+                font.scripts()
+                    .iter()
+                    .copied()
+                    .for_each(|script| {
+                        ret.per_script_monospace_font_ids
+                            .entry(script)
+                            .or_default()
+                            .push(font.id);
+                    })
+
+            });
+        ret
     }
 
     /// Get the locale.
@@ -215,9 +239,21 @@ impl FontSystem {
     }
 
     pub fn is_monospace(&self, id: fontdb::ID) -> bool {
-        self.monospace_fonts_ids.binary_search(&id).is_ok()
+        self.monospace_font_ids.binary_search(&id).is_ok()
     }
 
+    pub fn get_monospace_ids_for_scripts(&self, scripts: impl Iterator<Item = [u8; 4]>) -> Vec<fontdb::ID> {
+        let mut ret = scripts
+            .filter_map(|script| self.per_script_monospace_font_ids.get(&script))
+            .map(|ids| ids.iter().copied())
+            .flatten()
+            .collect::<Vec<_>>();
+        ret.sort();
+        ret.dedup();
+        ret
+    }
+
+    #[inline(always)]
     pub fn get_font_supported_codepoints_in_word(&mut self, id: fontdb::ID, word: &str) -> Option<usize> {
         self.get_font(id)
             .map(|font| {
