@@ -23,7 +23,7 @@ struct FontCachedCodepointSupportInfo {
 
 impl FontCachedCodepointSupportInfo {
     const SUPPORTED_MAX_SZ: usize = 256;
-    const NOT_SUPPORTED_MAX_SZ: usize = 768;
+    const NOT_SUPPORTED_MAX_SZ: usize = 512;
 
     fn new() -> Self {
         Self {
@@ -32,25 +32,47 @@ impl FontCachedCodepointSupportInfo {
         }
     }
 
-    fn unknown_has_codepoint(&mut self, font_codepoints: &[u32], codepoint: u32) -> bool {
+    #[inline(always)]
+    fn unknown_has_codepoint(
+        &mut self,
+        font_codepoints: &[u32],
+        codepoint: u32,
+        supported_insert_pos: usize,
+        not_supported_insert_pos: usize,
+    ) -> bool 
+    {
         let ret = font_codepoints.contains(&codepoint);
         if ret {
-            self.supported.insert(0, codepoint);
-            self.supported.truncate(Self::SUPPORTED_MAX_SZ);
+            // don't bother inserting if we are going to truncate the entry away
+            if  supported_insert_pos != Self::SUPPORTED_MAX_SZ {
+                self.supported.insert(supported_insert_pos, codepoint);
+                self.supported.truncate(Self::SUPPORTED_MAX_SZ);
+            }
         } else {
-            self.not_supported.insert(0, codepoint);
-            self.not_supported.truncate(Self::NOT_SUPPORTED_MAX_SZ);
+            // don't bother inserting if we are going to truncate the entry away
+            if  not_supported_insert_pos != Self::NOT_SUPPORTED_MAX_SZ {
+                self.not_supported.insert(not_supported_insert_pos, codepoint);
+                self.not_supported.truncate(Self::NOT_SUPPORTED_MAX_SZ);
+            }
         }
         ret
     }
 
+    #[inline(always)]
     fn has_codepoint(&mut self, font_codepoints: &[u32], codepoint: u32) -> bool {
-        if self.supported.contains(&codepoint) {
-            true
-        } else if self.not_supported.contains(&codepoint) {
-            false
-        } else {
-            self.unknown_has_codepoint(font_codepoints, codepoint)
+        match self.supported.binary_search(&codepoint) {
+            Ok(_) => true,
+            Err(supported_insert_pos) => match self.not_supported.binary_search(&codepoint) {
+                Ok(_) => false,
+                Err(not_supported_insert_pos) => {
+                    self.unknown_has_codepoint(
+                        font_codepoints,
+                        codepoint,
+                        supported_insert_pos,
+                        not_supported_insert_pos,
+                    )
+                },
+            }
         }
     }
 }
