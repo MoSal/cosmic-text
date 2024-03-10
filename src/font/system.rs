@@ -22,8 +22,8 @@ struct FontCachedCodepointSupportInfo {
 }
 
 impl FontCachedCodepointSupportInfo {
-    const SUPPORTED_MAX_SZ: usize = 256;
-    const NOT_SUPPORTED_MAX_SZ: usize = 512;
+    const SUPPORTED_MAX_SZ: usize = 512;
+    const NOT_SUPPORTED_MAX_SZ: usize = 1024;
 
     fn new() -> Self {
         Self {
