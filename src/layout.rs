@@ -77,6 +77,7 @@ impl LayoutGlyph {
                 (self.x + x_offset) * scale + offset.0,
                 math::truncf((self.y - y_offset) * scale + offset.1), // Hinting in Y axis
             ),
+            self.level.is_rtl(),
             self.cache_key_flags,
         );
 

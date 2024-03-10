@@ -7,6 +7,8 @@ bitflags::bitflags! {
     pub struct CacheKeyFlags: u32 {
         /// Skew by 14 degrees to synthesize italic
         const FAKE_ITALIC = 1;
+        /// Render the glyph of the mirror char of a box if in RIGHT-TO-LEFT span
+        const MIRROR_BOX_IF_RTL = 1<<1;
     }
 }
 
@@ -23,6 +25,7 @@ pub struct CacheKey {
     pub x_bin: SubpixelBin,
     /// Binning of fractional Y offset
     pub y_bin: SubpixelBin,
+    pub rtl: bool,
     /// [`CacheKeyFlags`]
     pub flags: CacheKeyFlags,
 }
@@ -33,6 +36,7 @@ impl CacheKey {
         glyph_id: u16,
         font_size: f32,
         pos: (f32, f32),
+        rtl: bool,
         flags: CacheKeyFlags,
     ) -> (Self, i32, i32) {
         let (x, x_bin) = SubpixelBin::new(pos.0);
@@ -44,6 +48,7 @@ impl CacheKey {
                 font_size_bits: font_size.to_bits(),
                 x_bin,
                 y_bin,
+                rtl,
                 flags,
             },
             x,

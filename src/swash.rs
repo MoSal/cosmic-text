@@ -36,6 +36,15 @@ fn swash_image(
     // in a real renderer
     let offset = Vector::new(cache_key.x_bin.as_float(), cache_key.y_bin.as_float());
 
+    // Render the glyph of the mirror char if is box, is in RTL span, and MIRROR_BOX_IF_RTL
+    // flag is set, and the font system has that info (must be a Monospace font).
+    let glyph_id = if cache_key.flags.contains(CacheKeyFlags::MIRROR_BOX_IF_RTL) && cache_key.rtl {
+        font.box_mirror_glyph_id(cache_key.glyph_id)
+            .unwrap_or(cache_key.glyph_id)
+    } else {
+        cache_key.glyph_id
+    };
+
     // Select our source order
     Render::new(&[
         // Color outline with the first palette
@@ -58,7 +67,7 @@ fn swash_image(
         None
     })
     // Render the image
-    .render(&mut scaler, cache_key.glyph_id)
+    .render(&mut scaler, glyph_id)
 }
 
 fn swash_outline_commands(
