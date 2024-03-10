@@ -25,6 +25,29 @@ fn swash_image(
         }
     };
 
+    let transform = {
+        let mut transfom_opt = None;
+
+        if cache_key.flags.contains(CacheKeyFlags::HORIZONTAL_MIRROR) {
+            transfom_opt = Some(Transform::scale(-1.0, 1.0));
+        }
+
+        if cache_key.flags.contains(CacheKeyFlags::FAKE_ITALIC) {
+            let fake_italic = Transform::skew(
+                Angle::from_degrees(14.0),
+                Angle::from_degrees(0.0),
+            );
+
+            if let Some(transform) = transfom_opt.as_mut() {
+                *transform = transform.then(&fake_italic)
+            } else {
+                transfom_opt = Some(fake_italic);
+            }
+        }
+
+        transfom_opt
+    };
+
     // Build the scaler
     let mut scaler = context
         .builder(font.as_swash())
@@ -49,14 +72,7 @@ fn swash_image(
     .format(Format::Alpha)
     // Apply the fractional offset
     .offset(offset)
-    .transform(if cache_key.flags.contains(CacheKeyFlags::FAKE_ITALIC) {
-        Some(Transform::skew(
-            Angle::from_degrees(14.0),
-            Angle::from_degrees(0.0),
-        ))
-    } else {
-        None
-    })
+    .transform(transform)
     // Render the image
     .render(&mut scaler, cache_key.glyph_id)
 }

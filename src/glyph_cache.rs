@@ -7,6 +7,8 @@ bitflags::bitflags! {
     pub struct CacheKeyFlags: u32 {
         /// Skew by 14 degrees to synthesize italic
         const FAKE_ITALIC = 1;
+        /// Horizontally mirror/flip a glyph
+        const HORIZONTAL_MIRROR = 1<<1;
     }
 }
 
