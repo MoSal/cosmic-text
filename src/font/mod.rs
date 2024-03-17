@@ -30,7 +30,9 @@ pub struct Font {
     data: Arc<dyn AsRef<[u8]> + Send + Sync>,
     id: fontdb::ID,
     monospace_em_width: Option<f32>,
+    // Populated for Monospace fonts only
     scripts: Vec<[u8; 4]>,
+    // Populated for Monospace fonts only
     unicode_codepoints: Vec<u32>,
 }
 
@@ -85,18 +87,16 @@ impl Font {
         let (monospace_em_width, scripts, unicode_codepoints) = {
             db.with_face_data(id, |font_data, face_index| {
                 let face = ttf_parser::Face::parse(font_data, face_index).ok()?;
-                let monospace_em_width = info
-                    .monospaced
-                    .then(|| {
-                        let hor_advance = face.glyph_hor_advance(face.glyph_index(' ')?)? as f32;
-                        let upem = face.units_per_em() as f32;
-                        Some(hor_advance / upem)
-                    })
-                    .flatten();
 
-                if info.monospaced && monospace_em_width.is_none() {
+                if !info.monospaced {
                     None?;
                 }
+
+                let monospace_em_width = {
+                    let hor_advance = face.glyph_hor_advance(face.glyph_index(' ')?)? as f32;
+                    let upem = face.units_per_em() as f32;
+                    Some(hor_advance / upem)
+                };
 
                 let scripts = face
                     .tables()
